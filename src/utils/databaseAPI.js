@@ -1,6 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { hashPassword, verifyPassword } from './passwordUtils';
-import { validateUsername, validateEmail, validatePassword, sanitizeInput } from './validation';
+import { validateUsername, validateEmail, validatePassword, sanitizeInput } from './Validation';
 
 // Function to register a new user
 export const registerUser = async (userData) => {

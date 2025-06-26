@@ -1,28 +1,36 @@
 import { useState } from 'react';
-import { supabase } from '../supabaseClient';
 import { useNavigate, Link } from 'react-router-dom';
+import { authenticateUser } from '../utils/databaseAPI';
 
 const Login = () => {
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState(null);
+    const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError(null);
-        let emailToUse = identifier;
-        if (!identifier.includes('@')) {
-            const { data, error: lookupErr } = await supabase.from('users').select('email').eq('username', identifier.toLowerCase()).single();
-            if (lookupErr || !data) {
-                setError('Invalid username/email or password');
-                return;
-            }
-            emailToUse = data.email;
+        setIsLoading(true);
+
+        try {
+            // our auth system not supasupa
+            const user = await authenticateUser(identifier, password);
+            
+            // Store user session
+            localStorage.setItem('currentUser', JSON.stringify(user));
+            
+            // Success - redirect to dashboard
+            navigate('/Dashboard');
+            
+        } catch (error) {
+            console.error('Authentication failed:', error);
+            // Show the error from your validation system
+            setError(error.message);
+        } finally {
+            setIsLoading(false);
         }
-        const { error: signInError } = await supabase.auth.signIn({ email: emailToUse, password });
-        if (signInError) setError('Invalid username/email or password');
-        else navigate('/dashboard');
     };
 
     return (
@@ -30,16 +38,31 @@ const Login = () => {
             <h2>Welcome Back!</h2>
             {error && <p className="error">{error}</p>}
             <form onSubmit={handleSubmit}>
-
                 <div className="input-box">
-                    <input type="text" placeholder="Username or Email" value={identifier} onChange={(e) => setIdentifier(e.target.value)} required />
+                    <input 
+                        type="text" 
+                        placeholder="Username or Email" 
+                        value={identifier} 
+                        onChange={(e) => setIdentifier(e.target.value)} 
+                        disabled={isLoading}
+                        required 
+                    />
                 </div>
 
                 <div className="input-box">
-                    <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                    <input 
+                        type="password" 
+                        placeholder="Password" 
+                        value={password} 
+                        onChange={(e) => setPassword(e.target.value)} 
+                        disabled={isLoading}
+                        required 
+                    />
                 </div>
 
-                <button type="submit">SIGN IN</button>
+                <button type="submit" disabled={isLoading}>
+                    {isLoading ? 'Signing In...' : 'SIGN IN'}
+                </button>
             </form>
             <p><Link to="/forgot-password">Forgot password?</Link></p>
             <p><Link to="/register">Don't have an account?</Link></p>

@@ -18,7 +18,7 @@ export const validateUsername = (username) => {
 
     // Check for invalid starting/ending characters
     if (username && (username.startsWith('_') || username.startsWith('-') || 
-                     username.endsWith('_') || username.endsWith('-'))) {
+                    username.endsWith('_') || username.endsWith('-'))) {
         errors.push("Username cannot start or end with special characters");
     }
 
@@ -110,35 +110,58 @@ export const validateEmail = (email) => {
 export const validatePassword = (password, username = '', email = '') => {
     const errors = [];
 
+    // Early return if password is not provided
+    if (!password) {
+        errors.push("Password is required");
+        return {
+            isValid: false,
+            errors: errors
+        };
+    }
+
+    // Convert to lowercase once at the beginning
+    const passwordLower = password.toLowerCase();
+    const usernameLower = username ? username.toLowerCase() : '';
+    const emailLower = email ? email.toLowerCase() : '';
+
     // Check length requirements
-    if (!password || password.length < 8) {
+    if (password.length < 8) {
         errors.push("Password must be at least 8 characters long");
     }
-    if (password && password.length > 128) {
+    if (password.length > 128) {
         errors.push("Password must not exceed 128 characters");
     }
 
     // Check against common passwords
     const commonPasswords = [
-        'password', '123456', '123456789', 'qwerty', 'abc123',
+        'password', '123456', '12345678', 'qwerty', 'abc123',
         'password123', 'admin', 'letmein', 'welcome', 'monkey',
         'dragon', 'master', 'shadow', 'football', 'baseball'
     ];
 
-    if (password && commonPasswords.includes(password.toLowerCase())) {
+    if (commonPasswords.includes(passwordLower)) {
         errors.push("This password is too common");
     }
 
     // Check against username similarity
-    if (password && username && password.toLowerCase() === username.toLowerCase()) {
+    if (username && passwordLower === usernameLower) {
         errors.push("Password cannot be the same as your username");
     }
 
-    // Check against email local part similarity
-    if (password && email) {
-        const emailLocal = email.split('@')[0];
-        if (password.toLowerCase() === emailLocal.toLowerCase()) {
+    // Check against email similarity
+    if (email) {
+        // Method 1: Check against full email
+        if (passwordLower === emailLower) {
             errors.push("Password cannot be the same as your email");
+        }
+        // Method 2: Check against email local part (before @)
+        else if (email.includes('@')) {
+            const emailLocalPart = email.split('@')[0];
+            const emailLocalLower = emailLocalPart.toLowerCase();
+            
+            if (passwordLower === emailLocalLower) {
+                errors.push("Password cannot be the same as your email");
+            }
         }
     }
 
@@ -148,14 +171,13 @@ export const validatePassword = (password, username = '', email = '') => {
         'qwerty', 'asdfgh', '111111', '000000'
     ];
 
-    const passwordLower = password.toLowerCase();
     for (const pattern of sequentialPatterns) {
         if (passwordLower.includes(pattern)) {
             errors.push("Password cannot contain sequential characters");
             break;
         }
     }
-
+    
     return {
         isValid: errors.length === 0,
         errors: errors

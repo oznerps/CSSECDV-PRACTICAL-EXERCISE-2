@@ -1,11 +1,15 @@
-import { Link } from 'react-router-dom';
-import { supabase } from '../supabaseClient';
+import { Link, useNavigate } from 'react-router-dom';
 
 const NavBar = () => {
-    const handleLogout = async () => {
-        await supabase.auth.signOut();
-        window.location.href = '/login';
+    const navigate = useNavigate();
+
+    const handleLogout = () => {
+        // Clear user session
+        localStorage.removeItem('currentUser');
+        // Redirect to login page
+        navigate('/login');
     };
+
     return (
         <nav className="navbar">
             <div className="container">
