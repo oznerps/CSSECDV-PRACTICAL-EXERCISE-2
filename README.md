@@ -49,8 +49,9 @@ src/
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/cssecdv-practical-exercise-2.git
-   cd cssecdv-practical-exercise-2
+   git clone repository 
+   cd CSSECDV-PRACTICAL-EXERCISE-2
+
    ```
 
 2. **Install dependencies**
