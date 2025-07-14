@@ -28,8 +28,8 @@ export default function Profile() {
     if (!user) return <p>Loading profile…</p>;
 
     return (
-        <div className="dashboard-container">
-            <h2>Your Profile</h2>
+        <div className="default-container">
+            <h1>Your Profile</h1>
             {message && <p>{message}</p>}
             <form onSubmit={handleSubmit}>
                 <input
