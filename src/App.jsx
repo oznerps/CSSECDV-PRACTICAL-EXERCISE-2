@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import ForgotPassword from './pages/ForgotPassword';
 import AdminDashboard from './pages/AdminDashboard';
 import UserManagement from './pages/UserManagement';
+import Profile from './pages/Profile';
 
 export default function App() {
     return (
@@ -34,11 +35,20 @@ export default function App() {
                         </ProtectedRoute>
                     }
                 />
-                                <Route
+                <Route
                     path="/user-management"
                     element={
                         <ProtectedRoute>
                             <UserManagement />
+                        </ProtectedRoute>
+                    }
+                />
+
+                <Route
+                    path="/profile"
+                    element={
+                        <ProtectedRoute>
+                            <Profile />
                         </ProtectedRoute>
                     }
                 />
