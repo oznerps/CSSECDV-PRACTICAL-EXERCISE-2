@@ -1,6 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { hashPassword, verifyPassword } from './passwordUtils';
-import { validateUsername, validateEmail, validatePassword, sanitizeInput } from './Validation';
+import { validateUsername, validateEmail, validatePassword, sanitizeInput } from './validation';
 
 export const registerUser = async (userData) => {
     try {
@@ -51,17 +51,16 @@ export const registerUser = async (userData) => {
             throw new Error('An account with this email already exists');
         }
 
-        // Hash password
-        const saltRounds = 12;
-        const passwordHash = await bcrypt.hash(password, saltRounds);
+        // Hash password using the imported function
+        const passwordHash = await hashPassword(password);
         
         // Insert user
         const { data: newUser, error: insertError } = await supabase
             .from('users')
             .insert({
-                username: sanitizedUsername.toLowerCase(), // Fixed: use sanitized version
-                display_name: sanitizedDisplayName, // Fixed: use sanitized version
-                email: emailValidation.normalizedEmail, // Fixed: use normalized email
+                username: sanitizedUsername.toLowerCase(),
+                display_name: sanitizedDisplayName,
+                email: emailValidation.normalizedEmail,
                 password_hash: passwordHash,
                 hash_algorithm: 'bcrypt'
             })
@@ -72,7 +71,7 @@ export const registerUser = async (userData) => {
             throw new Error(`Registration failed: ${insertError.message}`);
         }
         
-        // ===== NEW: Assign default 'user' role =====
+        // Assign default 'user' role
         const defaultRole = await getRoleByName('user');
         await assignUserRole(newUser.id, defaultRole.id);
         
@@ -120,7 +119,7 @@ export const authenticateUser = async (identifier, password) => {
             throw new Error('Invalid username/email or password');
         }
 
-        // ===== NEW: Get user roles and permissions =====
+        // Get user roles and permissions
         const userRoles = await getUserRoles(user.id);
         const userPermissions = await getUserPermissions(user.id);
 
