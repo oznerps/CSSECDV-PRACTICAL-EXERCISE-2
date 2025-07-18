@@ -1,5 +1,9 @@
+import { supabase } from "../supabaseClient";
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+
+import UserTemplate from "../components/UserTemplate.jsx";
+
 
 const UserManagement = () => {
     const [user, setUser] = useState(null);
@@ -35,6 +39,31 @@ const UserManagement = () => {
         // Redirect to login
         navigate('/login');
     };
+    
+    //
+    const[fetchError, setFetchError] = useState(null)
+    const[users, setUsers] = useState(null)
+
+    useEffect(() => {
+        const fetchUsers = async () => {
+            const { data, error} = await supabase
+             .from('users')
+             .select()
+
+
+             if (error) {
+                setFetchError('Could not fetch users')
+                setUsers(null)
+                console.log(error)
+             }
+             if (data) {
+                setUsers(data)
+                setFetchError(null)
+             }
+        }
+        
+        fetchUsers()
+    },[])
 
     if (loading) {
         return (
@@ -47,8 +76,29 @@ const UserManagement = () => {
     return (
         <div className="default-container">
             <h1>User Management Page</h1>
-            
+
+            {fetchError&& (<p>{fetchError}</p>)}
+            {users && (
+                <div className="users">
+                    <div className="userlist">
+                        <div className="user-entry">
+                            <h3>Username</h3>
+                            <h3>Display Name</h3>
+                            <h3>email</h3>
+                            <h3>Last Login</h3>
+                            <h3>Role</h3>
+                            
+                        </div>
+                        {users.map(user => (
+                        <UserTemplate key={user.id} user={user}/>
+                    )
+                    )}
+                    </div>
+                </div>
+            )}
         </div>
+
+        
     );
 };
 
