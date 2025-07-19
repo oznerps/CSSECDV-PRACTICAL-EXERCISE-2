@@ -1,3 +1,43 @@
 [2025-07-19T11:27:13.425Z] {"type":"AUTH_EVENT","eventType":"LOGIN_FAILED","userId":null,"clientIP":"::1","details":"Login failed: query.ilike is not a function","timestamp":"2025-07-19T11:27:13.425Z"}
 [2025-07-19T11:27:15.433Z] {"type":"AUTH_EVENT","eventType":"LOGIN_FAILED","userId":null,"clientIP":"::1","details":"Login failed: query.ilike is not a function","timestamp":"2025-07-19T11:27:15.433Z"}
 [2025-07-19T11:27:19.168Z] {"type":"AUTH_EVENT","eventType":"LOGIN_FAILED","userId":null,"clientIP":"::1","details":"Login failed: query.ilike is not a function","timestamp":"2025-07-19T11:27:19.168Z"}
+[2025-07-19T11:51:05.385Z] {"type":"AUTH_EVENT","eventType":"LOGIN_FAILED","userId":null,"clientIP":"::1","details":"Login failed: query.ilike is not a function","timestamp":"2025-07-19T11:51:05.385Z"}
+[2025-07-19T11:52:09.244Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T11:52:09.244Z"}
+[2025-07-19T11:52:42.941Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T11:52:42.940Z"}
+[2025-07-19T11:53:47.050Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T11:53:47.050Z"}
+[2025-07-19T12:07:13.595Z] {"type":"AUTH_EVENT","eventType":"LOGIN_FAILED","userId":null,"clientIP":"::1","details":"Login failed: supabase.from(...).select(...).eq is not a function","timestamp":"2025-07-19T12:07:13.595Z"}
+[2025-07-19T12:07:37.642Z] {"type":"AUTH_EVENT","eventType":"LOGIN_FAILED","userId":null,"clientIP":"::1","details":"Login failed: supabase.from(...).select(...).eq is not a function","timestamp":"2025-07-19T12:07:37.642Z"}
+[2025-07-19T12:08:03.024Z] {"type":"AUTH_EVENT","eventType":"LOGIN_FAILED","userId":null,"clientIP":"::1","details":"Login failed: supabase.from(...).select(...).eq is not a function","timestamp":"2025-07-19T12:08:03.023Z"}
+[2025-07-19T12:14:57.847Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T12:14:57.847Z"}
+[2025-07-19T12:16:53.770Z] {"type":"AUTH_EVENT","eventType":"AUTH_SUCCESS","userId":19,"clientIP":"::1","details":"JWT authentication successful","timestamp":"2025-07-19T12:16:53.769Z"}
+[2025-07-19T12:19:32.724Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T12:19:32.724Z"}
+[2025-07-19T12:19:34.734Z] {"type":"AUTH_EVENT","eventType":"AUTH_SUCCESS","userId":19,"clientIP":"::1","details":"JWT authentication successful","timestamp":"2025-07-19T12:19:34.733Z"}
+[2025-07-19T12:21:27.963Z] {"type":"AUTH_EVENT","eventType":"AUTH_SUCCESS","userId":19,"clientIP":"::1","details":"JWT authentication successful","timestamp":"2025-07-19T12:21:27.962Z"}
+[2025-07-19T12:21:31.544Z] {"type":"AUTH_EVENT","eventType":"AUTH_SUCCESS","userId":19,"clientIP":"::1","details":"JWT authentication successful","timestamp":"2025-07-19T12:21:31.544Z"}
+[2025-07-19T12:23:49.163Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T12:23:49.162Z"}
+[2025-07-19T12:23:53.714Z] {"type":"AUTH_EVENT","eventType":"AUTH_SUCCESS","userId":19,"clientIP":"::1","details":"JWT authentication successful","timestamp":"2025-07-19T12:23:53.714Z"}
+[2025-07-19T12:24:54.338Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T12:24:54.337Z"}
+[2025-07-19T12:26:12.336Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T12:26:12.336Z"}
+[2025-07-19T12:26:28.749Z] {"type":"AUTH_EVENT","eventType":"AUTH_SUCCESS","userId":19,"clientIP":"::1","details":"JWT authentication successful","timestamp":"2025-07-19T12:26:28.749Z"}
+[2025-07-19T12:28:06.879Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T12:28:06.879Z"}
+[2025-07-19T12:28:12.959Z] {"type":"AUTH_EVENT","eventType":"AUTH_SUCCESS","userId":19,"clientIP":"::1","details":"JWT authentication successful","timestamp":"2025-07-19T12:28:12.958Z"}
+[2025-07-19T12:30:03.641Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T12:30:03.641Z"}
+[2025-07-19T12:30:05.143Z] {"type":"AUTH_EVENT","eventType":"AUTH_SUCCESS","userId":19,"clientIP":"::1","details":"JWT authentication successful","timestamp":"2025-07-19T12:30:05.143Z"}
+[2025-07-19T12:31:31.518Z] {"type":"AUTH_EVENT","eventType":"LOGIN_FAILED","userId":null,"clientIP":"::1","details":"Login failed: Invalid username/email or password","timestamp":"2025-07-19T12:31:31.517Z"}
+[2025-07-19T12:31:43.032Z] {"type":"AUTH_EVENT","eventType":"LOGIN_FAILED","userId":null,"clientIP":"::1","details":"Login failed: Invalid username/email or password","timestamp":"2025-07-19T12:31:43.032Z"}
+[2025-07-19T12:32:59.595Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":20,"clientIP":"::1","details":"User renz2 logged in successfully","timestamp":"2025-07-19T12:32:59.595Z"}
+[2025-07-19T12:34:31.808Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T12:34:31.808Z"}
+[2025-07-19T12:37:55.883Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T12:37:55.883Z"}
+[2025-07-19T12:37:57.202Z] {"type":"AUTH_EVENT","eventType":"AUTH_SUCCESS","userId":19,"clientIP":"::1","details":"JWT authentication successful","timestamp":"2025-07-19T12:37:57.202Z"}
+[2025-07-19T12:43:09.966Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":20,"clientIP":"::1","details":"User renz2 logged in successfully","timestamp":"2025-07-19T12:43:09.966Z"}
+[2025-07-19T12:46:20.071Z] {"type":"AUTH_EVENT","eventType":"AUTH_SUCCESS","userId":20,"clientIP":"::1","details":"JWT authentication successful","timestamp":"2025-07-19T12:46:20.071Z"}
+[2025-07-19T12:49:13.994Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T12:49:13.994Z"}
+[2025-07-19T12:49:20.829Z] {"type":"AUTH_EVENT","eventType":"LOGIN_FAILED","userId":null,"clientIP":"::1","details":"Login failed: Invalid username/email or password","timestamp":"2025-07-19T12:49:20.829Z"}
+[2025-07-19T12:50:22.951Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":20,"clientIP":"::1","details":"User renz2 logged in successfully","timestamp":"2025-07-19T12:50:22.951Z"}
+[2025-07-19T12:50:24.146Z] {"type":"AUTH_EVENT","eventType":"AUTH_SUCCESS","userId":20,"clientIP":"::1","details":"JWT authentication successful","timestamp":"2025-07-19T12:50:24.146Z"}
+[2025-07-19T12:52:43.876Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T12:52:43.876Z"}
+[2025-07-19T12:52:50.994Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":20,"clientIP":"::1","details":"User renz2 logged in successfully","timestamp":"2025-07-19T12:52:50.994Z"}
+[2025-07-19T12:54:51.078Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T12:54:51.078Z"}
+[2025-07-19T12:56:00.133Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":21,"clientIP":"::1","details":"User normal logged in successfully","timestamp":"2025-07-19T12:56:00.133Z"}
+[2025-07-19T12:58:37.691Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":19,"clientIP":"::1","details":"User renz1 logged in successfully","timestamp":"2025-07-19T12:58:37.691Z"}
+[2025-07-19T13:00:29.814Z] {"type":"AUTH_EVENT","eventType":"LOGIN_SUCCESS","userId":21,"clientIP":"::1","details":"User normal logged in successfully","timestamp":"2025-07-19T13:00:29.814Z"}

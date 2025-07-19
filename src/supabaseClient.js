@@ -1,34 +1,36 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Handle both Vite (frontend) and Node.js (backend) environments
-const supabaseUrl = typeof import.meta !== 'undefined' && import.meta.env 
-    ? import.meta.env.VITE_SUPABASE_URL 
-    : process.env.VITE_SUPABASE_URL;
+// Environment variable detection for both browser and Node.js
+let supabaseUrl, supabaseAnonKey;
 
-const supabaseAnonKey = typeof import.meta !== 'undefined' && import.meta.env
-    ? import.meta.env.VITE_SUPABASE_ANON_KEY
-    : process.env.VITE_SUPABASE_ANON_KEY;
+if (typeof window !== 'undefined') {
+    // Browser environment
+    supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+} else {
+    // Node.js environment
+    try {
+        await import('dotenv/config');
+    } catch (error) {
+        // dotenv not available, continue
+    }
+    
+    supabaseUrl = process.env.VITE_SUPABASE_URL;
+    supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY;
+}
 
-export const supabase =
-    supabaseUrl && supabaseAnonKey
-        ? createClient(supabaseUrl, supabaseAnonKey)
-        : {
-            auth: {
-                session: () => null,
-                signIn: async () => ({ error: null }),
-                signUp: async () => ({ user: null, error: null }),
-                signOut: async () => ({ error: null }),
-                onAuthStateChange: (callback) => {
-                    callback('SIGNED_OUT', null);
-                    return { unsubscribe: () => { } };
-                },
-                api: {
-                    resetPasswordForEmail: async () => ({ error: null }),
-                },
-            },
-            from: () => ({
-                select: () => ({
-                    single: async () => ({ data: { email: '' }, error: null }),
-                }),
-            }),
-        };
+if (!supabaseUrl || !supabaseAnonKey) {
+    console.error('Supabase configuration missing');
+    console.error('VITE_SUPABASE_URL:', supabaseUrl ? 'Found' : 'Missing');
+    console.error('VITE_SUPABASE_ANON_KEY:', supabaseAnonKey ? 'Found' : 'Missing');
+    throw new Error('Supabase configuration incomplete');
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        autoRefreshToken: typeof window !== 'undefined',
+        persistSession: typeof window !== 'undefined'
+    }
+});
+
+console.log('Supabase client initialized successfully');

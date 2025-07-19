@@ -79,10 +79,21 @@ app.use('/api', apiLimiter);
 // Middleware configuration
 app.use(express.json());
 app.use(cors({
-    origin: 'http://localhost:5173',
-    credentials: true
+    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
 }));
-app.use(express.static(path.join(__dirname, 'dist')));
+
+// ONLY serve static files if dist directory exists (for production)
+import fs from 'fs';
+const distPath = path.join(__dirname, 'dist');
+if (fs.existsSync(distPath)) {
+    console.log('Serving static files from dist directory');
+    app.use(express.static(distPath));
+} else {
+    console.log('Running in development mode - dist directory not found');
+}
 
 // Enhanced authentication middleware with logging
 const authenticateUser = async (req, res, next) => {
@@ -230,11 +241,23 @@ const validateUserUpdateRequest = [
     }
 ];
 
+// Add error handling
+process.on('unhandledRejection', (reason, promise) => {
+    console.log('Unhandled Rejection at:', promise, 'reason:', reason);
+    // Keep server running instead of crashing
+});
+
+process.on('uncaughtException', (error) => {
+    console.log('Uncaught Exception:', error);
+    // Log but don't exit immediately
+});
+
 // ================================
 // Authentication Endpoints
 // ================================
 
-// Login endpoint with validation and JWT
+
+// Login endpoint with validation and JWT 
 app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
     try {
         const { identifier, password } = req.body;
@@ -249,7 +272,7 @@ app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
         
         await logAuthEvent('LOGIN_SUCCESS', user.id, clientIP, `User ${user.username} logged in successfully`);
         
-        // Return user data and token
+        // Return user data and token - FIXED: Include all user fields
         res.json({
             success: true,
             user: {
@@ -257,6 +280,9 @@ app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
                 username: user.username,
                 display_name: user.display_name,
                 email: user.email,
+                created_at: user.created_at,      
+                last_login: user.last_login,        
+                updated_at: user.updated_at,     
                 roles: user.roles,
                 permissions: user.permissions
             },
@@ -271,6 +297,78 @@ app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
         console.error('Login error:', error);
         res.status(401).json({
             error: error.message || 'Authentication failed'
+        });
+    }
+});
+
+// Registration endpoint with validation and RBAC integration
+app.post('/api/auth/register', [
+    body('username')
+        .trim()
+        .isLength({ min: 3, max: 30 })
+        .withMessage('Username must be between 3 and 30 characters')
+        .matches(/^[a-zA-Z0-9_-]+$/)
+        .withMessage('Username can only contain letters, numbers, hyphens, and underscores'),
+    body('displayName')
+        .trim()
+        .isLength({ min: 1, max: 30 })
+        .withMessage('Display name must be between 1 and 30 characters'),
+    body('email')
+        .isEmail()
+        .normalizeEmail()
+        .withMessage('Invalid email format'),
+    body('password')
+        .isLength({ min: 8 })
+        .withMessage('Password must be at least 8 characters long'),
+    (req, res, next) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                error: 'Invalid request data',
+                details: errors.array()
+            });
+        }
+        next();
+    }
+], async (req, res) => {
+    try {
+        const { username, displayName, email, password } = req.body;
+        const clientIP = req.ip || req.connection.remoteAddress;
+        
+        // Import the registerUser function
+        const { registerUser } = await import('./src/utils/databaseAPI.js');
+        
+        await logSecurityEvent('REGISTRATION_ATTEMPT', null, `Registration attempt for username: ${username}, email: ${email}, IP: ${clientIP}`);
+        
+        const newUser = await registerUser({
+            username,
+            displayName,
+            email,
+            password
+        });
+        
+        await logSecurityEvent('REGISTRATION_SUCCESS', newUser.id, `User ${username} registered successfully`);
+        
+        // Return success without sensitive data
+        res.status(201).json({
+            success: true,
+            message: 'Registration successful',
+            user: {
+                id: newUser.id,
+                username: newUser.username,
+                display_name: newUser.display_name,
+                email: newUser.email
+            },
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        const clientIP = req.ip || req.connection.remoteAddress;
+        await logSecurityEvent('REGISTRATION_FAILED', null, `Registration failed: ${error.message}, IP: ${clientIP}`);
+        
+        console.error('Registration error:', error);
+        res.status(400).json({
+            error: error.message || 'Registration failed'
         });
     }
 });
@@ -427,7 +525,7 @@ app.put('/api/users/:id',
                 });
             }
             
-            // Update user in database (you'll need to implement this function in databaseAPI.js)
+            // Update user in database
             const { error } = await supabase
                 .from('users')
                 .update({
@@ -597,13 +695,25 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Catch-all for React Router
+// Catch-all for React Router - ONLY if dist directory exists
 app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+    const distIndexPath = path.join(__dirname, 'dist', 'index.html');
+    if (fs.existsSync(distIndexPath)) {
+        res.sendFile(distIndexPath);
+    } else {
+        // In development mode, redirect API calls that don't exist
+        res.status(404).json({ 
+            error: 'API endpoint not found',
+            message: 'Running in development mode. Frontend should be on port 5173'
+        });
+    }
 });
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`Express server running on http://localhost:${PORT}`);
     console.log(`React app should be running on http://localhost:5173`);
+    if (!fs.existsSync(distPath)) {
+        console.log('📝 Note: Running in development mode. Build the app with "npm run build" for production.');
+    }
 });

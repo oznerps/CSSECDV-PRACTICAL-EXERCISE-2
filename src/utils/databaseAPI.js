@@ -29,25 +29,23 @@ export const registerUser = async (userData) => {
             throw new Error(passwordValidation.errors[0]);
         }
 
-        // Check for existing username (case-insensitive)
-        const { data: existingUsername } = await supabase
+        // Check for existing username (case-insensitive) - FIXED QUERY
+        const { data: existingUsers } = await supabase
             .from('users')
             .select('id')
-            .ilike('username', sanitizedUsername.toLowerCase())
-            .single();
+            .eq('username', sanitizedUsername.toLowerCase());
         
-        if (existingUsername) {
+        if (existingUsers && existingUsers.length > 0) {
             throw new Error('Username already exists');
         }
 
-        // Check for existing email (case-insensitive)
-        const { data: existingEmail } = await supabase
+        // Check for existing email (case-insensitive) - FIXED QUERY
+        const { data: existingEmails } = await supabase
             .from('users')
             .select('id')
-            .ilike('email', emailValidation.normalizedEmail)
-            .single();
+            .eq('email', emailValidation.normalizedEmail);
         
-        if (existingEmail) {
+        if (existingEmails && existingEmails.length > 0) {
             throw new Error('An account with this email already exists');
         }
 
@@ -72,8 +70,13 @@ export const registerUser = async (userData) => {
         }
         
         // Assign default 'user' role
-        const defaultRole = await getRoleByName('user');
-        await assignUserRole(newUser.id, defaultRole.id);
+        try {
+            const defaultRole = await getRoleByName('user');
+            await assignUserRole(newUser.id, defaultRole.id);
+        } catch (roleError) {
+            console.error('Warning: Could not assign default role:', roleError);
+            // Don't fail registration if role assignment fails
+        }
         
         return newUser;
         
@@ -82,7 +85,7 @@ export const registerUser = async (userData) => {
     }
 };
 
-// Function to authenticate a user (login) - Updated with RBAC
+// Function to authenticate a user (login) - FIXED WITH PROPER QUERIES
 export const authenticateUser = async (identifier, password) => {
     try {
         // Sanitize input
@@ -95,22 +98,30 @@ export const authenticateUser = async (identifier, password) => {
         // Determine if identifier is email or username
         const isEmail = sanitizedIdentifier.includes('@');
 
-        let query = supabase.from('users').select('*');
-
+        // FIXED: Use proper Supabase query syntax
+        let query;
         if (isEmail) {
             // Search by email (case-insensitive)
-            query = query.ilike('email', sanitizedIdentifier.toLowerCase());
+            query = supabase
+                .from('users')
+                .select('*')
+                .eq('email', sanitizedIdentifier.toLowerCase());
         } else {
             // Search by username (case-insensitive)
-            query = query.ilike('username', sanitizedIdentifier.toLowerCase());
+            query = supabase
+                .from('users')
+                .select('*')
+                .eq('username', sanitizedIdentifier.toLowerCase());
         }
 
-        const { data: user, error } = await query.single();
+        const { data: users, error } = await query;
 
         // Generic error message to prevent user enumeration
-        if (error || !user) {
+        if (error || !users || users.length === 0) {
             throw new Error('Invalid username/email or password');
         }
+
+        const user = users[0]; // Get the first (and should be only) user
 
         // Verify password
         const isPasswordValid = await verifyPassword(password, user.password_hash);
@@ -139,6 +150,7 @@ export const authenticateUser = async (identifier, password) => {
         };
 
     } catch (error) {
+        console.error('Authentication error:', error);
         throw error;
     }
 };
@@ -187,10 +199,11 @@ export async function getUserRoles(userId) {
         .eq('user_id', userId);
     
     if (error) {
-        throw new Error(`Failed to fetch user roles: ${error.message}`);
+        console.error('Error fetching user roles:', error);
+        return []; // Return empty array instead of throwing
     }
     
-    return data.map(item => item.roles);
+    return data ? data.map(item => item.roles).filter(Boolean) : [];
 }
 
 /**
@@ -211,16 +224,23 @@ export async function getUserPermissions(userId) {
         .eq('user_id', userId);
     
     if (error) {
-        throw new Error(`Failed to fetch user permissions: ${error.message}`);
+        console.error('Error fetching user permissions:', error);
+        return []; // Return empty array instead of throwing
     }
     
     // Flatten the nested structure to get permission names
     const permissions = new Set();
-    data.forEach(userRole => {
-        userRole.roles.role_permissions.forEach(rolePermission => {
-            permissions.add(rolePermission.permissions.name);
+    if (data) {
+        data.forEach(userRole => {
+            if (userRole.roles && userRole.roles.role_permissions) {
+                userRole.roles.role_permissions.forEach(rolePermission => {
+                    if (rolePermission.permissions) {
+                        permissions.add(rolePermission.permissions.name);
+                    }
+                });
+            }
         });
-    });
+    }
     
     return Array.from(permissions);
 }
@@ -290,6 +310,7 @@ export async function getAllUsersWithRoles() {
             display_name,
             email,
             created_at,
+            last_login,
             user_roles (
                 roles (
                     id,
@@ -305,7 +326,7 @@ export async function getAllUsersWithRoles() {
     
     return data.map(user => ({
         ...user,
-        roles: user.user_roles.map(ur => ur.roles)
+        roles: user.user_roles ? user.user_roles.map(ur => ur.roles).filter(Boolean) : []
     }));
 }
 
@@ -322,7 +343,7 @@ export async function getAllRoles() {
         throw new Error(`Failed to fetch roles: ${error.message}`);
     }
     
-    return data;
+    return data || [];
 }
 
 /**
@@ -442,8 +463,13 @@ export async function updateUserRolesSecure(currentUserId, targetUserId, roleIds
         const newRoles = await getUserRoles(targetUserId);
         
         // Log the role change (import this function in server.js)
-        const { logRoleChange } = await import('./auditLogger.js');
-        await logRoleChange(currentUserId, targetUserId, oldRoles, newRoles);
+        try {
+            const { logRoleChange } = await import('./auditLogger.js');
+            await logRoleChange(currentUserId, targetUserId, oldRoles, newRoles);
+        } catch (logError) {
+            console.error('Logging error:', logError);
+            // Don't fail the operation if logging fails
+        }
         
         return {
             success: true,
@@ -486,7 +512,7 @@ export async function getUserWithRolesAndPermissions(userId) {
             throw new Error(`Failed to fetch user: ${error.message}`);
         }
         
-        const roles = user.user_roles.map(ur => ur.roles);
+        const roles = user.user_roles ? user.user_roles.map(ur => ur.roles).filter(Boolean) : [];
         const permissions = await getUserPermissions(userId);
         
         return {

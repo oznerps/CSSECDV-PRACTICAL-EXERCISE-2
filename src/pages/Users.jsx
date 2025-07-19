@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import UserTemplate from "../components/UserTemplate.jsx";
 import { getAllUsersWithRoles } from '../utils/databaseAPI.js';
+import { getSession, clearSession } from '../utils/SessionManager.js';
 
 const UserManagement = () => {
     const [user, setUser] = useState(null);
@@ -12,26 +13,25 @@ const UserManagement = () => {
 
     // Session management
     useEffect(() => {
-        const loadUserData = () => {
-            try {
-                const userData = localStorage.getItem('currentUser');
-                if (userData) {
-                    const parsedUser = JSON.parse(userData);
-                    setUser(parsedUser);
-                } else {
+            const loadUserData = () => {
+                try {
+                    const user = getSession(); // NEW
+                    if (user) {
+                        setUser(user);
+                    } else {
+                        navigate('/login');
+                    }
+                } catch (error) {
+                    console.error('Error loading user data:', error);
+                    clearSession(); // NEW
                     navigate('/login');
+                } finally {
+                    setLoading(false);
                 }
-            } catch (error) {
-                console.error('Error loading user data:', error);
-                localStorage.removeItem('currentUser');
-                navigate('/login');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        loadUserData();
-    }, [navigate]);
+            };
+        
+            loadUserData();
+        }, [navigate]);
 
     // Function to refresh user list after role changes
     const refreshUserList = async () => {
