@@ -1,31 +1,33 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { getSession } from '../utils/sessionmanager';
-import { userHasPermission } from '../utils/databaseAPI';
+import { getSession, getAuthToken } from '../utils/sessionmanager';
+import { verifyPermissionServer } from '../utils/authorizationUtils';
 
-// Shared authorization hook 
-const useAuthorization = (authCheck) => {
+const RequirePermission = ({ children, requiredPermission, fallbackPath = '/unauthorized' }) => {
     const [isAuthorized, setIsAuthorized] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        const checkAuth = async () => {
+        const checkPermission = async () => {
             try {
                 setIsLoading(true);
                 setError(null);
                 
                 const user = getSession();
-                if (!user?.id) {
+                const token = getAuthToken();
+                
+                if (!user?.id || !token) {
                     setIsAuthorized(false);
                     return;
                 }
 
-                const result = await authCheck(user.id);
-                setIsAuthorized(result);
+                // Server-side permission verification
+                const hasPermission = await verifyPermissionServer(requiredPermission, token);
+                setIsAuthorized(hasPermission);
                 
             } catch (error) {
-                console.error('Authorization failed:', error);
+                console.error('Permission verification failed:', error);
                 setError('Unable to verify permissions');
                 setIsAuthorized(false);
             } finally {
@@ -33,26 +35,46 @@ const useAuthorization = (authCheck) => {
             }
         };
 
-        checkAuth();
-    }, [authCheck]);
-
-    return { isAuthorized, isLoading, error };
-};
-
-const RequirePermission = ({ children, requiredPermission, fallbackPath = '/unauthorized' }) => {
-    const authCheck = React.useCallback(
-        (userId) => userHasPermission(userId, requiredPermission),
-        [requiredPermission]
-    );
-    
-    const { isAuthorized, isLoading, error } = useAuthorization(authCheck);
+        checkPermission();
+    }, [requiredPermission]);
 
     if (isLoading) {
-        return <div style={{ textAlign: 'center', marginTop: '2rem' }}>Verifying permissions...</div>;
+        return (
+            <div style={{ 
+                textAlign: 'center', 
+                marginTop: '2rem',
+                padding: '2rem',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '8px',
+                border: '1px solid #dee2e6'
+            }}>
+                <div style={{ marginBottom: '1rem' }}>🔍</div>
+                <div>Verifying permissions...</div>
+                <div style={{ fontSize: '0.9rem', color: '#6c757d', marginTop: '0.5rem' }}>
+                    Checking access to {requiredPermission}
+                </div>
+            </div>
+        );
     }
 
     if (error) {
-        return <div style={{ textAlign: 'center', marginTop: '2rem', color: '#e74c3c' }}>{error}</div>;
+        return (
+            <div style={{ 
+                textAlign: 'center', 
+                marginTop: '2rem',
+                padding: '2rem',
+                backgroundColor: '#f8d7da',
+                borderRadius: '8px',
+                border: '1px solid #f5c6cb',
+                color: '#721c24'
+            }}>
+                <div style={{ marginBottom: '1rem' }}>⚠️</div>
+                <div>{error}</div>
+                <div style={{ fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                    Please try refreshing the page
+                </div>
+            </div>
+        );
     }
 
     if (!isAuthorized) {

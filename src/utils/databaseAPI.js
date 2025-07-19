@@ -324,3 +324,217 @@ export async function getAllRoles() {
     
     return data;
 }
+
+/**
+ * Check if user can assign specific roles
+ */
+export async function canUserAssignRole(currentUserId, targetRoleId) {
+    try {
+        // Get current user's roles
+        const currentUserRoles = await getUserRoles(currentUserId);
+        
+        // Get the target role details
+        const { data: targetRole, error } = await supabase
+            .from('roles')
+            .select('*')
+            .eq('id', targetRoleId)
+            .single();
+        
+        if (error) {
+            console.error('Error fetching target role:', error);
+            return false;
+        }
+        
+        // Admin can assign any role
+        if (currentUserRoles.some(role => role.name === 'admin')) {
+            return true;
+        }
+        
+        // Manager can assign 'user' role but not 'admin' or 'manager'
+        if (currentUserRoles.some(role => role.name === 'manager')) {
+            return targetRole.name === 'user';
+        }
+        
+        // Regular users cannot assign any roles
+        return false;
+        
+    } catch (error) {
+        console.error('Error checking role assignment permission:', error);
+        return false;
+    }
+}
+
+/**
+ * Enhanced role update with comprehensive error handling and validation
+ */
+export async function updateUserRolesSecure(currentUserId, targetUserId, roleIds) {
+    // Start a transaction-like operation
+    let oldRoles = [];
+    
+    try {
+        // Prevent self-modification for safety
+        if (currentUserId === targetUserId) {
+            throw new Error('Cannot modify your own roles');
+        }
+        
+        // Get current roles for logging
+        oldRoles = await getUserRoles(targetUserId);
+        
+        // Validate all role assignments before making changes
+        for (const roleId of roleIds) {
+            const canAssign = await canUserAssignRole(currentUserId, roleId);
+            if (!canAssign) {
+                throw new Error(`Insufficient permission to assign role ${roleId}`);
+            }
+        }
+        
+        // Validate that target user exists
+        const { data: targetUser, error: userError } = await supabase
+            .from('users')
+            .select('id, username')
+            .eq('id', targetUserId)
+            .single();
+        
+        if (userError || !targetUser) {
+            throw new Error('Target user not found');
+        }
+        
+        // Remove existing roles
+        const { error: removeError } = await supabase
+            .from('user_roles')
+            .delete()
+            .eq('user_id', targetUserId);
+        
+        if (removeError) {
+            throw new Error(`Failed to remove existing roles: ${removeError.message}`);
+        }
+        
+        // Add new roles
+        if (roleIds.length > 0) {
+            const roleAssignments = roleIds.map(roleId => ({
+                user_id: targetUserId,
+                role_id: roleId
+            }));
+            
+            const { error: insertError } = await supabase
+                .from('user_roles')
+                .insert(roleAssignments);
+            
+            if (insertError) {
+                // Try to restore old roles if possible
+                try {
+                    if (oldRoles.length > 0) {
+                        const restoreAssignments = oldRoles.map(role => ({
+                            user_id: targetUserId,
+                            role_id: role.id
+                        }));
+                        await supabase.from('user_roles').insert(restoreAssignments);
+                    }
+                } catch (restoreError) {
+                    console.error('Failed to restore roles after error:', restoreError);
+                }
+                
+                throw new Error(`Failed to assign new roles: ${insertError.message}`);
+            }
+        }
+        
+        // Get new roles for logging
+        const newRoles = await getUserRoles(targetUserId);
+        
+        // Log the role change (import this function in server.js)
+        const { logRoleChange } = await import('./auditLogger.js');
+        await logRoleChange(currentUserId, targetUserId, oldRoles, newRoles);
+        
+        return {
+            success: true,
+            oldRoles,
+            newRoles
+        };
+        
+    } catch (error) {
+        console.error('Error in updateUserRolesSecure:', error);
+        throw error;
+    }
+}
+
+/**
+ * Get user by ID with roles and permissions
+ */
+export async function getUserWithRolesAndPermissions(userId) {
+    try {
+        const { data: user, error } = await supabase
+            .from('users')
+            .select(`
+                id,
+                username,
+                display_name,
+                email,
+                created_at,
+                last_login,
+                user_roles (
+                    roles (
+                        id,
+                        name,
+                        description
+                    )
+                )
+            `)
+            .eq('id', userId)
+            .single();
+        
+        if (error) {
+            throw new Error(`Failed to fetch user: ${error.message}`);
+        }
+        
+        const roles = user.user_roles.map(ur => ur.roles);
+        const permissions = await getUserPermissions(userId);
+        
+        return {
+            ...user,
+            roles,
+            permissions
+        };
+        
+    } catch (error) {
+        throw error;
+    }
+}
+
+/**
+ * Enhanced role assignment with validation
+ */
+export async function assignUserRoleSecure(currentUserId, targetUserId, roleId) {
+    try {
+        // Check permission to assign this role
+        const canAssign = await canUserAssignRole(currentUserId, roleId);
+        if (!canAssign) {
+            throw new Error('Insufficient permission to assign this role');
+        }
+        
+        // Check if role assignment already exists
+        const { data: existing } = await supabase
+            .from('user_roles')
+            .select('id')
+            .eq('user_id', targetUserId)
+            .eq('role_id', roleId)
+            .single();
+        
+        if (existing) {
+            throw new Error('User already has this role');
+        }
+        
+        // Assign the role
+        const { error } = await supabase
+            .from('user_roles')
+            .insert({ user_id: targetUserId, role_id: roleId });
+        
+        if (error) {
+            throw new Error(`Role assignment failed: ${error.message}`);
+        }
+        
+        return { success: true };
+        
+    } catch (error) {
+        throw error;
+    }
+}
