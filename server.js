@@ -1,8 +1,19 @@
+import { verifyToken } from './src/utils/jwtUtils.js'
+import { generateToken } from './src/utils/jwtUtils.js';
+import { authenticateUser as dbAuthenticateUser } from './src/utils/databaseAPI.js';
+import rateLimit from 'express-rate-limit';
+import helmet from 'helmet';
+import { body, validationResult } from 'express-validator';
+import { generateToken } from './src/utils/jwtUtils.js';
+import { authenticateUser as dbAuthenticateUser } from './src/utils/databaseAPI.js';
+
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
 
-// Import your existing database functions
+// Import JWT utilities
+const { verifyToken } = require('./src/utils/jwtUtils.js');
+
 const { 
     getUserRoles, 
     userHasPermission,
@@ -19,96 +30,189 @@ app.use(cors({
 }));
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// Authentication middleware
+// Updated JWT Authentication middleware
+
 const authenticateUser = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
         
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
             return res.status(401).json({ 
-                error: 'Authentication required'
+                error: 'Authentication required',
+                code: 'MISSING_TOKEN'
             });
         }
 
         const token = authHeader.split(' ')[1];
-        const userId = parseInt(token);
         
-        if (!userId || isNaN(userId)) {
-            return res.status(401).json({ 
-                error: 'Invalid authentication token'
-            });
-        }
-
-        req.user = { id: userId };
+        // Verify JWT token instead of parsing userId
+        const decoded = verifyToken(token);
+        
+        // Attach user info from token
+        req.user = {
+            id: decoded.userId,
+            username: decoded.username,
+            email: decoded.email,
+            roles: decoded.roles
+        };
+        
         next();
         
     } catch (error) {
-        console.error('Authentication error:', error);
-        return res.status(500).json({ 
-            error: 'Authentication check failed'
+        console.error('Authentication error:', error.message);
+        
+        if (error.message.includes('expired')) {
+            return res.status(401).json({ 
+                error: 'Token expired',
+                code: 'TOKEN_EXPIRED'
+            });
+        }
+        
+        return res.status(401).json({ 
+            error: 'Invalid authentication token',
+            code: 'INVALID_TOKEN'
         });
     }
 };
 
-// C1 IMPLEMENTATION: Authorization Middleware
-const requireRole = (allowedRoles) => {
-    return async (req, res, next) => {
-        try {
-            if (!req.user || !req.user.id) {
-                return res.status(401).json({ 
-                    error: 'Authentication required'
-                });
-            }
-
-            const userRoles = await getUserRoles(req.user.id);
-            const hasRequiredRole = userRoles.some(role => 
-                allowedRoles.includes(role.name)
-            );
-
-            if (!hasRequiredRole) {
-                return res.status(403).json({ 
-                    error: 'Insufficient permissions'
-                });
-            }
-
-            next();
-            
-        } catch (error) {
-            console.error('Role authorization error:', error);
-            return res.status(500).json({ 
-                error: 'Authorization check failed'
+// Login endpoint that returns JWT
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { identifier, password } = req.body;
+        
+        if (!identifier || !password) {
+            return res.status(400).json({
+                error: 'Username/email and password are required'
             });
         }
-    };
-};
+        
+        // Use existing database authentication
+        const user = await dbAuthenticateUser(identifier, password);
+        
+        // Generate JWT token
+        const token = generateToken(user);
+        
+        // Return user data and token
+        res.json({
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                display_name: user.display_name,
+                email: user.email,
+                roles: user.roles,
+                permissions: user.permissions
+            },
+            token,
+            expires_in: '24h'
+        });
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(401).json({
+            error: error.message || 'Authentication failed'
+        });
+    }
+});
 
-const requirePermission = (requiredPermission) => {
-    return async (req, res, next) => {
-        try {
-            if (!req.user || !req.user.id) {
-                return res.status(401).json({ 
-                    error: 'Authentication required'
-                });
-            }
+// Rate limiting for authentication endpoints
+const authLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // 5 attempts per window
+    message: {
+        error: 'Too many authentication attempts, please try again later',
+        code: 'RATE_LIMIT_EXCEEDED'
+    },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
-            const hasPermission = await userHasPermission(req.user.id, requiredPermission);
+// General API rate limiting
+const apiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // 100 requests per window
+    message: {
+        error: 'Too many requests, please try again later'
+    }
+});
 
-            if (!hasPermission) {
-                return res.status(403).json({ 
-                    error: 'Insufficient permissions'
-                });
-            }
+// Security headers middleware
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+            fontSrc: ["'self'", "https://fonts.gstatic.com"],
+            scriptSrc: ["'self'"],
+            imgSrc: ["'self'", "data:", "https:"],
+        },
+    },
+    crossOriginEmbedderPolicy: false // Allow for development
+}));
 
-            next();
-            
-        } catch (error) {
-            console.error('Permission authorization error:', error);
-            return res.status(500).json({ 
-                error: 'Permission check failed'
+// Apply rate limiting
+app.use('/api/auth', authLimiter);
+app.use('/api', apiLimiter);
+
+// Request validation middleware
+const validateLoginRequest = [
+    body('identifier')
+        .trim()
+        .isLength({ min: 1 })
+        .withMessage('Username or email is required'),
+    body('password')
+        .isLength({ min: 1 })
+        .withMessage('Password is required'),
+    (req, res, next) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                error: 'Invalid request data',
+                details: errors.array()
             });
         }
-    };
-};
+        next();
+    }
+];
+
+
+app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
+    try {
+        const { identifier, password } = req.body;
+        
+        if (!identifier || !password) {
+            return res.status(400).json({
+                error: 'Username/email and password are required'
+            });
+        }
+        
+        const user = await dbAuthenticateUser(identifier, password);
+        
+        // Generate JWT token
+        const token = generateToken(user);
+        
+        // Return user data and token
+        res.json({
+            success: true,
+            user: {
+                id: user.id,
+                username: user.username,
+                display_name: user.display_name,
+                email: user.email,
+                roles: user.roles,
+                permissions: user.permissions
+            },
+            token,
+            expires_in: '24h'
+        });
+        
+    } catch (error) {
+        console.error('Login error:', error);
+        res.status(401).json({
+            error: error.message || 'Authentication failed'
+        });
+    }
+});
 
 // C2 IMPLEMENTATION: Protected Routes
 

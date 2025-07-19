@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { authenticateUser } from '../utils/databaseAPI';
 import { setSession } from '../utils/sessionmanager';
 
 const Login = () => {
@@ -16,21 +15,32 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            // our auth system not supasupa
-            const user = await authenticateUser(identifier, password);
+            // Call new JWT login endpoint
+            const response = await fetch('http://localhost:3001/api/auth/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ identifier, password })
+            });
 
-            // Choose the first role (or prioritize if needed)
-            const primaryRole = user.roles.length > 0 ? user.roles[0] : 'user';
+            const data = await response.json();
 
-            // Store session with a flat 'role' for ProtectedRoute
-            setSession({ ...user, role: primaryRole });
+            if (!response.ok) {
+                throw new Error(data.error || 'Login failed');
+            }
+
+            // Store JWT token and user data
+            setSession({
+                user: data.user,
+                token: data.token,
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+            });
             
-            // Success - redirect to dashboard
-            navigate('/Dashboard');
+            navigate('/dashboard');
             
         } catch (error) {
             console.error('Authentication failed:', error);
-            // Show the error from your validation system
             setError(error.message);
         } finally {
             setIsLoading(false);
