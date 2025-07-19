@@ -2,7 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import NavBar from './components/NavBar';
 import ProtectedRoute from './components/ProtectedRoute';
-import RequirePermission from './components/RequirePermission'; // New import
+import RequirePermission from './components/RequirePermission';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -42,20 +42,17 @@ export default function App() {
                     }
                 />
 
-                {/* Layered security - requires BOTH role AND permission */}
+                {/* Permission-based protection - requires user management permission */}
                 <Route
                     path="/user-management"
                     element={
-                        <ProtectedRoute 
-                            allowedRoles={['admin', 'manager']}
-                            requiredPermissions={['manage_users']}
-                        >
+                        <RequirePermission requiredPermission="manage_users">
                             <UserManagement />
-                        </ProtectedRoute>
+                        </RequirePermission>
                     }
                 />
 
-                {/* Permission-based profile access - more flexible than role-based */}
+                {/* Permission-based profile access */}
                 <Route
                     path="/profile"
                     element={

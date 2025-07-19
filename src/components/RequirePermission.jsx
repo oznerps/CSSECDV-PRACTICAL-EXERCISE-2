@@ -3,78 +3,63 @@ import { Navigate } from 'react-router-dom';
 import { getSession } from '../utils/sessionmanager';
 import { userHasPermission } from '../utils/databaseAPI';
 
-const RequirePermission = ({ children, requiredPermission, fallbackPath = '/unauthorized' }) => {
-    // State to track permission checking process
-    const [hasPermission, setHasPermission] = useState(null); // null = checking, true = allowed, false = denied
+// Shared authorization hook 
+const useAuthorization = (authCheck) => {
+    const [isAuthorized, setIsAuthorized] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState(null);
 
     useEffect(() => {
-        const checkPermission = async () => {
+        const checkAuth = async () => {
             try {
                 setIsLoading(true);
                 setError(null);
                 
-                // First, verify the user is authenticated
                 const user = getSession();
-                if (!user || !user.id) {
-                    setHasPermission(false);
-                    setIsLoading(false);
+                if (!user?.id) {
+                    setIsAuthorized(false);
                     return;
                 }
 
-                // Check if user has the specific permission
-                const permissionGranted = await userHasPermission(user.id, requiredPermission);
-                setHasPermission(permissionGranted);
+                const result = await authCheck(user.id);
+                setIsAuthorized(result);
                 
             } catch (error) {
-                console.error('Permission check failed:', error);
+                console.error('Authorization failed:', error);
                 setError('Unable to verify permissions');
-                setHasPermission(false); // Fail secure - deny access on error
+                setIsAuthorized(false);
             } finally {
                 setIsLoading(false);
             }
         };
 
-        checkPermission();
-    }, [requiredPermission]); // Re-check if required permission changes
+        checkAuth();
+    }, [authCheck]);
 
-    // Show loading state while checking permissions
+    return { isAuthorized, isLoading, error };
+};
+
+const RequirePermission = ({ children, requiredPermission, fallbackPath = '/unauthorized' }) => {
+    const authCheck = React.useCallback(
+        (userId) => userHasPermission(userId, requiredPermission),
+        [requiredPermission]
+    );
+    
+    const { isAuthorized, isLoading, error } = useAuthorization(authCheck);
+
     if (isLoading) {
-        return (
-            <div style={{ 
-                textAlign: 'center', 
-                marginTop: '2rem',
-                padding: '1rem'
-            }}>
-                <p>Verifying permissions...</p>
-            </div>
-        );
+        return <div style={{ textAlign: 'center', marginTop: '2rem' }}>Verifying permissions...</div>;
     }
 
-    // Show error state if permission check failed
     if (error) {
-        return (
-            <div style={{ 
-                textAlign: 'center', 
-                marginTop: '2rem',
-                padding: '1rem',
-                color: '#e74c3c'
-            }}>
-                <p>{error}</p>
-                <p>Please try refreshing the page or contact support if the problem persists.</p>
-            </div>
-        );
+        return <div style={{ textAlign: 'center', marginTop: '2rem', color: '#e74c3c' }}>{error}</div>;
     }
 
-    // Redirect if permission denied
-    if (hasPermission === false) {
+    if (!isAuthorized) {
         const user = getSession();
-        // If user is not authenticated, send to login; otherwise send to unauthorized page
         return user ? <Navigate to={fallbackPath} replace /> : <Navigate to="/login" replace />;
     }
 
-    // Permission granted - render the protected content
     return children;
 };
 
