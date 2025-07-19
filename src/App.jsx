@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import NavBar from './components/NavBar';
 import ProtectedRoute from './components/ProtectedRoute';
+import RequirePermission from './components/RequirePermission'; // New import
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -20,6 +21,8 @@ export default function App() {
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
+                
+                {/* Basic authentication - any logged-in user */}
                 <Route
                     path="/dashboard"
                     element={
@@ -28,34 +31,41 @@ export default function App() {
                         </ProtectedRoute>
                     }
                 />
+
+                {/* Permission-based protection - requires specific administrative permission */}
                 <Route
                     path="/admin-dashboard"
                     element={
-                        <ProtectedRoute allowedRoles={['admin']}>
+                        <RequirePermission requiredPermission="admin_access">
                             <AdminDashboard />
-                        </ProtectedRoute>
+                        </RequirePermission>
                     }
                 />
+
+                {/* Layered security - requires BOTH role AND permission */}
                 <Route
                     path="/user-management"
                     element={
-                        <ProtectedRoute allowedRoles={['admin', 'manager']}>
+                        <ProtectedRoute 
+                            allowedRoles={['admin', 'manager']}
+                            requiredPermissions={['manage_users']}
+                        >
                             <UserManagement />
                         </ProtectedRoute>
                     }
                 />
 
+                {/* Permission-based profile access - more flexible than role-based */}
                 <Route
                     path="/profile"
                     element={
-                        <ProtectedRoute>
+                        <RequirePermission requiredPermission="edit_profile">
                             <Profile />
-                        </ProtectedRoute>
+                        </RequirePermission>
                     }
                 />
 
                 <Route path="/unauthorized" element={<Unauthorized />} />   
-                
             </Routes>
         </>
     );
