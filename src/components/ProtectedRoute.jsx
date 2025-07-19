@@ -13,12 +13,14 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
       return;
     }
 
+    const userRoles = Array.isArray(user.roles) ? user.roles : [user.role];
+
     if (!allowedRoles || allowedRoles.length === 0) {
-      setIsAuthorized(true);
-    } else if (allowedRoles.includes(user.role)) {
-      setIsAuthorized(true);
+      setIsAuthorized(true); // no restriction
+    } else if (userRoles.some(role => allowedRoles.includes(role))) {
+      setIsAuthorized(true); // at least one matching role
     } else {
-      setIsAuthorized(false);
+      setIsAuthorized(false); // no matching role
     }
   }, [allowedRoles]);
 
