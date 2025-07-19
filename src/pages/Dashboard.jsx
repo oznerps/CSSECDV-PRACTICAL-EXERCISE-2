@@ -282,25 +282,6 @@ const Dashboard = () => {
                         )}
                     </div>
 
-                    {/* Debug info for development */}
-                    {process.env.NODE_ENV === 'development' && (
-                        <div style={{ 
-                            marginTop: '2rem', 
-                            padding: '1rem', 
-                            backgroundColor: '#e9ecef', 
-                            borderRadius: '8px',
-                            fontSize: '0.9rem'
-                        }}>
-                            <h4>Debug Info (Development Only)</h4>
-                            <p><strong>User ID:</strong> {user.id}</p>
-                            <p><strong>Roles:</strong> {JSON.stringify(user.roles)}</p>
-                            <p><strong>Permissions:</strong> {JSON.stringify(user.permissions)}</p>
-                            <p><strong>Has Admin Role:</strong> {hasRole('admin').toString()}</p>
-                            <p><strong>Has Manager Role:</strong> {hasRole('manager').toString()}</p>
-                            <p><strong>Has Manage Users Permission:</strong> {hasPermission('manage_users').toString()}</p>
-                        </div>
-                    )}
-
                     <button onClick={handleLogout} style={{
                         marginTop: '2rem',
                         padding: '0.75rem 1.5rem',
