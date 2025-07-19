@@ -7,7 +7,7 @@ import helmet from 'helmet';
 import { body, validationResult } from 'express-validator';
 
 // JWT utilities
-import { verifyToken, generateToken } from './src/utils/jwtUtils.js';
+import { verifyToken, generateToken, refreshToken } from './src/utils/jwtUtils.js';
 
 // Database functions
 import { 
@@ -16,8 +16,13 @@ import {
     userHasPermission,
     getUserPermissions,
     canUserAssignRole,
-    updateUserRolesSecure
+    updateUserRolesSecure,
+    getAllUsersWithRoles,
+    getUserWithRolesAndPermissions
 } from './src/utils/databaseAPI.js';
+
+// Supabase client
+import { supabase } from './src/supabaseClient.js';
 
 // Audit logging
 import { 
@@ -201,6 +206,34 @@ const validateLoginRequest = [
     }
 ];
 
+// User update validation middleware
+const validateUserUpdateRequest = [
+    body('display_name')
+        .optional()
+        .trim()
+        .isLength({ min: 1, max: 30 })
+        .withMessage('Display name must be between 1 and 30 characters'),
+    body('email')
+        .optional()
+        .isEmail()
+        .normalizeEmail()
+        .withMessage('Invalid email format'),
+    (req, res, next) => {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({
+                error: 'Invalid request data',
+                details: errors.array()
+            });
+        }
+        next();
+    }
+];
+
+// ================================
+// Authentication Endpoints
+// ================================
+
 // Login endpoint with validation and JWT
 app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
     try {
@@ -286,7 +319,161 @@ app.get('/api/auth/verify-permission/:permission',
     }
 );
 
-// API endpoint for role updates with validation
+// Test endpoint to verify authorization
+app.get('/api/auth/test',
+    authenticateUser,
+    async (req, res) => {
+        try {
+            const userRoles = await getUserRoles(req.user.id);
+            const permissions = await getUserPermissions(req.user.id);
+            
+            res.json({
+                message: 'Authentication successful',
+                user: req.user,
+                roles: userRoles,
+                permissions: permissions,
+                timestamp: new Date().toISOString()
+            });
+        } catch (error) {
+            res.status(500).json({ error: 'Failed to fetch user data' });
+        }
+    }
+);
+
+// ================================
+// User Management API Endpoints
+// ================================
+
+// GET /api/users - List all users (admin and manager only)
+app.get('/api/users', 
+    authenticateUser,
+    requireRole(['admin', 'manager']),
+    async (req, res) => {
+        try {
+            const users = await getAllUsersWithRoles();
+            
+            // Log access to user list
+            await logSecurityEvent('USER_LIST_ACCESS', req.user.id, `User ${req.user.username} accessed user list`);
+            
+            // Return user list without sensitive information
+            const sanitizedUsers = users.map(user => ({
+                id: user.id,
+                username: user.username,
+                display_name: user.display_name,
+                email: user.email,
+                created_at: user.created_at,
+                last_login: user.last_login,
+                roles: user.roles
+            }));
+            
+            res.json({
+                success: true,
+                users: sanitizedUsers,
+                count: sanitizedUsers.length,
+                timestamp: new Date().toISOString()
+            });
+            
+        } catch (error) {
+            console.error('Error fetching users:', error);
+            res.status(500).json({ 
+                error: 'Failed to fetch users'
+            });
+        }
+    }
+);
+
+// PUT /api/users/:id - Update user information
+app.put('/api/users/:id',
+    authenticateUser,
+    validateUserUpdateRequest,
+    async (req, res) => {
+        try {
+            const targetUserId = parseInt(req.params.id);
+            const currentUserId = req.user.id;
+            const { display_name, email } = req.body;
+            
+            // Check if user is updating their own profile or if they have admin permissions
+            const isOwnProfile = targetUserId === currentUserId;
+            const hasAdminPermission = await userHasPermission(currentUserId, 'manage_users');
+            
+            if (!isOwnProfile && !hasAdminPermission) {
+                await logAuthorizationFailure(currentUserId, 'update_user', 'Insufficient permissions to update other users');
+                return res.status(403).json({
+                    error: 'You can only update your own profile or need admin permissions'
+                });
+            }
+            
+            // Get current user data
+            const targetUser = await getUserWithRolesAndPermissions(targetUserId);
+            if (!targetUser) {
+                return res.status(404).json({
+                    error: 'User not found'
+                });
+            }
+            
+            // Prepare update data
+            const updateData = {};
+            if (display_name !== undefined) {
+                updateData.display_name = display_name;
+            }
+            if (email !== undefined) {
+                updateData.email = email;
+            }
+            
+            // Only proceed if there's something to update
+            if (Object.keys(updateData).length === 0) {
+                return res.status(400).json({
+                    error: 'No valid fields to update'
+                });
+            }
+            
+            // Update user in database (you'll need to implement this function in databaseAPI.js)
+            const { error } = await supabase
+                .from('users')
+                .update({
+                    ...updateData,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', targetUserId);
+            
+            if (error) {
+                throw error;
+            }
+            
+            // Log the update
+            const updateType = isOwnProfile ? 'PROFILE_UPDATE' : 'USER_UPDATE';
+            const updateDescription = isOwnProfile 
+                ? `User ${req.user.username} updated their profile`
+                : `Admin ${req.user.username} updated user ${targetUser.username}`;
+                
+            await logSecurityEvent(updateType, currentUserId, updateDescription);
+            
+            // Get updated user data
+            const updatedUser = await getUserWithRolesAndPermissions(targetUserId);
+            
+            res.json({
+                success: true,
+                message: 'User updated successfully',
+                user: {
+                    id: updatedUser.id,
+                    username: updatedUser.username,
+                    display_name: updatedUser.display_name,
+                    email: updatedUser.email,
+                    roles: updatedUser.roles
+                },
+                timestamp: new Date().toISOString()
+            });
+            
+        } catch (error) {
+            console.error('Error updating user:', error);
+            res.status(500).json({ 
+                error: 'Failed to update user'
+            });
+        }
+    }
+);
+
+// PUT /api/users/:userId/roles - Update user roles
 app.put('/api/users/:userId/roles',
     authenticateUser,
     requirePermission('manage_users'),
@@ -322,44 +509,7 @@ app.put('/api/users/:userId/roles',
     }
 );
 
-// Protected routes with server-side permission verification
-app.get('/admin',
-    authenticateUser,
-    requirePermission('admin_access'),
-    (req, res) => {
-        res.json({
-            message: 'Welcome to the admin dashboard',
-            user: req.user,
-            timestamp: new Date().toISOString()
-        });
-    }
-);
-
-app.get('/users',
-    authenticateUser,
-    requireRole(['admin', 'manager']),
-    (req, res) => {
-        res.json({
-            message: 'User management interface',
-            user: req.user,
-            timestamp: new Date().toISOString()
-        });
-    }
-);
-
-app.get('/profile',
-    authenticateUser,
-    requirePermission('edit_profile'),
-    (req, res) => {
-        res.json({
-            message: 'User profile interface',
-            user: req.user,
-            timestamp: new Date().toISOString()
-        });
-    }
-);
-
-// API endpoint with layered security
+// DELETE /api/users/:id - Delete user (admin only with layered security)
 app.delete('/api/users/:id',
     authenticateUser,
     requireRole(['admin']),
@@ -392,26 +542,52 @@ app.delete('/api/users/:id',
     }
 );
 
-// Test endpoint to verify authorization
-app.get('/api/auth/test',
+// ================================
+// Protected Routes (Frontend Routes)
+// ================================
+
+// Admin Dashboard
+app.get('/admin',
     authenticateUser,
-    async (req, res) => {
-        try {
-            const userRoles = await getUserRoles(req.user.id);
-            const permissions = await getUserPermissions(req.user.id);
-            
-            res.json({
-                message: 'Authentication successful',
-                user: req.user,
-                roles: userRoles,
-                permissions: permissions,
-                timestamp: new Date().toISOString()
-            });
-        } catch (error) {
-            res.status(500).json({ error: 'Failed to fetch user data' });
-        }
+    requirePermission('admin_access'),
+    (req, res) => {
+        res.json({
+            message: 'Welcome to the admin dashboard',
+            user: req.user,
+            timestamp: new Date().toISOString()
+        });
     }
 );
+
+// User Management Interface
+app.get('/users',
+    authenticateUser,
+    requireRole(['admin', 'manager']),
+    (req, res) => {
+        res.json({
+            message: 'User management interface',
+            user: req.user,
+            timestamp: new Date().toISOString()
+        });
+    }
+);
+
+// Profile Management
+app.get('/profile',
+    authenticateUser,
+    requirePermission('edit_profile'),
+    (req, res) => {
+        res.json({
+            message: 'User profile interface',
+            user: req.user,
+            timestamp: new Date().toISOString()
+        });
+    }
+);
+
+// ================================
+// Utility Endpoints
+// ================================
 
 // Health check
 app.get('/health', (req, res) => {
