@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { setSession } from '../utils/sessionmanager';
+import { setSession } from '../utils/SessionManager';
 
 const Login = () => {
     const [identifier, setIdentifier] = useState('');

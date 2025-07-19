@@ -1,4 +1,4 @@
-import { getSession, getAuthToken, clearSession } from './sessionmanager';
+import {getAuthToken, clearSession } from './SessionManager';
 
 // Make authenticated API request
 const makeAuthRequest = async (url, options = {}) => {

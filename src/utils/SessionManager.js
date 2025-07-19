@@ -141,6 +141,7 @@ export const isSessionExpiring = (minutesThreshold = 5) => {
         return (expiryTime - now) <= thresholdTime;
         
     } catch (error) {
+        console.error('Error checking session expiration:', error);
         return false;
     }
 };

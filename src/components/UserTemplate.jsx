@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import PropTypes from 'prop-types';
 import { getAllRoles, updateUserRoles, userHasPermission } from '../utils/databaseAPI.js';
-import { getSession } from '../utils/sessionmanager.js';
+import { getSession } from '../utils/SessionManager.js';
 
 const UserTemplate = ({ user, onUserUpdate }) => {
     // State for role editing functionality
@@ -215,6 +216,28 @@ const UserTemplate = ({ user, onUserUpdate }) => {
             </div>
         </div>
     );
+};
+
+// PropTypes validation
+UserTemplate.propTypes = {
+    user: PropTypes.shape({
+        id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+        username: PropTypes.string.isRequired,
+        display_name: PropTypes.string.isRequired,
+        email: PropTypes.string.isRequired,
+        last_login: PropTypes.string,
+        roles: PropTypes.arrayOf(PropTypes.shape({
+            id: PropTypes.oneOfType([PropTypes.string, PropTypes.number]).isRequired,
+            name: PropTypes.string.isRequired,
+            description: PropTypes.string
+        }))
+    }).isRequired,
+    onUserUpdate: PropTypes.func
+};
+
+// Default props
+UserTemplate.defaultProps = {
+    onUserUpdate: null
 };
 
 export default UserTemplate;

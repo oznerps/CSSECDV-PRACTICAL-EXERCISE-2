@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
-import { getSession, getAuthToken } from '../utils/sessionmanager';
+import PropTypes from 'prop-types';
+import { getSession, getAuthToken } from '../utils/SessionManager';
 import { verifyPermissionServer } from '../utils/authorizationUtils';
 
 const RequirePermission = ({ children, requiredPermission, fallbackPath = '/unauthorized' }) => {
@@ -83,6 +84,18 @@ const RequirePermission = ({ children, requiredPermission, fallbackPath = '/unau
     }
 
     return children;
+};
+
+// PropTypes validation
+RequirePermission.propTypes = {
+    children: PropTypes.node.isRequired,
+    requiredPermission: PropTypes.string.isRequired,
+    fallbackPath: PropTypes.string
+};
+
+// Default props
+RequirePermission.defaultProps = {
+    fallbackPath: '/unauthorized'
 };
 
 export default RequirePermission;

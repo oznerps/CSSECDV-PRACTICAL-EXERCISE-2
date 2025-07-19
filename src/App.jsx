@@ -7,8 +7,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import ForgotPassword from './pages/ForgotPassword';
-import AdminDashboard from './pages/AdminDashboard';
-import UserManagement from './pages/UserManagement';
+import AdminDashboard from './pages/Admin';
+import UserManagement from './pages/Users';
 import Profile from './pages/Profile';
 import Unauthorized from './pages/Unauthorized';
 
