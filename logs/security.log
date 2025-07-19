@@ -1,0 +1,3 @@
+[2025-07-19T11:27:13.425Z] {"type":"AUTH_EVENT","eventType":"LOGIN_FAILED","userId":null,"clientIP":"::1","details":"Login failed: query.ilike is not a function","timestamp":"2025-07-19T11:27:13.425Z"}
+[2025-07-19T11:27:15.433Z] {"type":"AUTH_EVENT","eventType":"LOGIN_FAILED","userId":null,"clientIP":"::1","details":"Login failed: query.ilike is not a function","timestamp":"2025-07-19T11:27:15.433Z"}
+[2025-07-19T11:27:19.168Z] {"type":"AUTH_EVENT","eventType":"LOGIN_FAILED","userId":null,"clientIP":"::1","details":"Login failed: query.ilike is not a function","timestamp":"2025-07-19T11:27:19.168Z"}

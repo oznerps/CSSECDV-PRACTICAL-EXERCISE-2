@@ -1,0 +1,3 @@
+[2025-07-19T11:27:13.423Z] {"type":"ACCESS_ATTEMPT","identifier":"renz1","clientIP":"::1","action":"login_attempt","timestamp":"2025-07-19T11:27:13.422Z"}
+[2025-07-19T11:27:15.433Z] {"type":"ACCESS_ATTEMPT","identifier":"renz1","clientIP":"::1","action":"login_attempt","timestamp":"2025-07-19T11:27:15.432Z"}
+[2025-07-19T11:27:19.167Z] {"type":"ACCESS_ATTEMPT","identifier":"renz1","clientIP":"::1","action":"login_attempt","timestamp":"2025-07-19T11:27:19.167Z"}

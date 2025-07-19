@@ -1,6 +1,6 @@
-import { supabase } from '../supabaseClient';
-import { hashPassword, verifyPassword } from './passwordUtils';
-import { validateUsername, validateEmail, validatePassword, sanitizeInput } from './validation';
+import { supabase } from '../supabaseClient.js';
+import { hashPassword, verifyPassword } from './passwordUtils.js';
+import { validateUsername, validateEmail, validatePassword, sanitizeInput } from './validation.js';
 
 export const registerUser = async (userData) => {
     try {

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const AdminDashboard = () => {
-    const [user, setUser] = useState(null);
+    const [Users, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
 
