@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import NavBar from './components/NavBar';
 import ProtectedRoute from './components/ProtectedRoute';
 import RequirePermission from './components/RequirePermission';
+import RequireRole from './components/requireRole';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -32,19 +33,19 @@ export default function App() {
                     }
                 />
 
-                {/* Permission-based protection - requires specific administrative permission */}
+                {/* Role-based protection - admin role only */}
                 <Route
-                    path="/admin-dashboard"
+                    path="/admin"
                     element={
-                        <RequirePermission requiredPermission="admin_access">
+                        <RequireRole requiredRole="admin">
                             <AdminDashboard />
-                        </RequirePermission>
+                        </RequireRole>
                     }
                 />
 
-                {/* Permission-based protection - requires user management permission */}
+                {/* Role-based protection - admin and manager roles */}
                 <Route
-                    path="/user-management"
+                    path="/users"
                     element={
                         <RequirePermission requiredPermission="manage_users">
                             <UserManagement />
@@ -52,13 +53,13 @@ export default function App() {
                     }
                 />
 
-                {/* Permission-based profile access */}
+                {/* All authenticated users (as per PDF specification) */}
                 <Route
                     path="/profile"
                     element={
-                        <RequirePermission requiredPermission="edit_profile">
+                        <ProtectedRoute>
                             <Profile />
-                        </RequirePermission>
+                        </ProtectedRoute>
                     }
                 />
 
