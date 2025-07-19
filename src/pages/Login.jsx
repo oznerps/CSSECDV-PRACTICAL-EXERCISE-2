@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authenticateUser } from '../utils/databaseAPI';
+import { setSession } from '../utils/sessionmanager';
 
 const Login = () => {
     const [identifier, setIdentifier] = useState('');
@@ -17,9 +18,12 @@ const Login = () => {
         try {
             // our auth system not supasupa
             const user = await authenticateUser(identifier, password);
-            
-            // Store user session
-            localStorage.setItem('currentUser', JSON.stringify(user));
+
+            // Choose the first role (or prioritize if needed)
+            const primaryRole = user.roles.length > 0 ? user.roles[0] : 'user';
+
+            // Store session with a flat 'role' for ProtectedRoute
+            setSession({ ...user, role: primaryRole });
             
             // Success - redirect to dashboard
             navigate('/Dashboard');

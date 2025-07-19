@@ -9,6 +9,7 @@ import ForgotPassword from './pages/ForgotPassword';
 import AdminDashboard from './pages/AdminDashboard';
 import UserManagement from './pages/UserManagement';
 import Profile from './pages/Profile';
+import Unauthorized from './pages/Unauthorized';
 
 export default function App() {
     return (
@@ -30,7 +31,7 @@ export default function App() {
                 <Route
                     path="/admin-dashboard"
                     element={
-                        <ProtectedRoute>
+                        <ProtectedRoute allowedRoles={['admin']}>
                             <AdminDashboard />
                         </ProtectedRoute>
                     }
@@ -38,7 +39,7 @@ export default function App() {
                 <Route
                     path="/user-management"
                     element={
-                        <ProtectedRoute>
+                        <ProtectedRoute allowedRoles={['admin', 'manager']}>
                             <UserManagement />
                         </ProtectedRoute>
                     }
@@ -52,6 +53,9 @@ export default function App() {
                         </ProtectedRoute>
                     }
                 />
+
+                <Route path="/unauthorized" element={<Unauthorized />} />   
+                
             </Routes>
         </>
     );

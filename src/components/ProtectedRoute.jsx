@@ -1,45 +1,37 @@
 import { useState, useEffect } from 'react';
 import { Navigate } from 'react-router-dom';
+import { getSession } from '../utils/sessionmanager';
 
-const ProtectedRoute = ({ children }) => {
-    const [isAuthenticated, setIsAuthenticated] = useState(null); // null = loading, true/false = determined
-    
-    useEffect(() => {
-        const checkAuthentication = () => {
-            try {
-                const userData = localStorage.getItem('currentUser');
-                if (userData) {
-                    const user = JSON.parse(userData);
-                    setIsAuthenticated(true);
-                } else {
-                    setIsAuthenticated(false);
-                }
-            } catch (error) {
-                // If there's an error parsing the user data, consider them not authenticated
-                localStorage.removeItem('currentUser');
-                setIsAuthenticated(false);
-            }
-        };
-        
-        checkAuthentication();
-    }, []);
-    
-    // Show loading state while checking authentication
-    if (isAuthenticated === null) {
-        return (
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px' }}>
-                <p>Loading...</p>
-            </div>
-        );
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const [isAuthorized, setIsAuthorized] = useState(null);
+
+  useEffect(() => {
+    const user = getSession();
+
+    if (!user) {
+      setIsAuthorized(false);
+      return;
     }
-    
-    // Redirect to login if not authenticated
-    if (!isAuthenticated) {
-        return <Navigate to="/login" replace />;
+
+    if (!allowedRoles || allowedRoles.length === 0) {
+      setIsAuthorized(true);
+    } else if (allowedRoles.includes(user.role)) {
+      setIsAuthorized(true);
+    } else {
+      setIsAuthorized(false);
     }
-    
-    // return children if authenticated
-    return children;
+  }, [allowedRoles]);
+
+  if (isAuthorized === null) {
+    return <p style={{ textAlign: 'center', marginTop: '2rem' }}>Loading...</p>;
+  }
+
+  if (!isAuthorized) {
+    const user = getSession();
+    return user ? <Navigate to="/unauthorized" replace /> : <Navigate to="/login" replace />;
+  }
+
+  return children;
 };
 
 export default ProtectedRoute;
