@@ -361,7 +361,7 @@ app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
         const cookieName = process.env.NODE_ENV === 'production' ? '__Host-sessionid' : 'sessionid';
         const cookieOptions = {
             httpOnly: true,
-            sameSite: 'lax', // Changed from 'strict' to 'lax' for better cross-tab behavior
+            sameSite: 'strict', // CSSECDV requirement: Must use 'strict' for session cookies
             maxAge: 1800000, // 30 minutes
             path: '/'
         };
@@ -419,7 +419,7 @@ app.post('/api/auth/logout', authenticateUser, async (req, res) => {
         const cookieName = process.env.NODE_ENV === 'production' ? '__Host-sessionid' : 'sessionid';
         const cookieOptions = {
             httpOnly: true,
-            sameSite: 'lax',
+            sameSite: 'strict',
             path: '/'
         };
         
@@ -461,7 +461,7 @@ app.post('/api/auth/logout-all', authenticateUser, async (req, res) => {
         const cookieName = process.env.NODE_ENV === 'production' ? '__Host-sessionid' : 'sessionid';
         const cookieOptions = {
             httpOnly: true,
-            sameSite: 'lax',
+            sameSite: 'strict',
             path: '/'
         };
         
