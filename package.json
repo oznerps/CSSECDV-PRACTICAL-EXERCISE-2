@@ -1,7 +1,9 @@
 {
     "name": "cssecdv-practical-exercise-2",
-    "version": "0.0.1",
+    "version": "1.0.0",
+    "description": "Secure Authentication System with Hybrid JWT and Session Management",
     "type": "module",
+    "main": "server.js",
     "scripts": {
         "dev": "vite",
         "build": "vite build",
@@ -10,11 +12,13 @@
         "dev:server": "nodemon server.js",
         "dev:both": "concurrently \"npm run dev\" \"npm run dev:server\"",
         "start": "node server.js",
-        "lint": "eslint src --ext .js,.jsx"
+        "lint": "eslint src --ext .js,.jsx",
+        "postinstall": "echo 'Installation complete! Please configure your .env file with Supabase credentials.'"
     },
     "dependencies": {
         "@supabase/supabase-js": "^2.0.0",
         "bcryptjs": "^3.0.2",
+        "cookie-parser": "^1.4.7",
         "cors": "^2.8.5",
         "dotenv": "^17.2.0",
         "express": "^4.18.2",
@@ -35,5 +39,26 @@
         "eslint-plugin-react-hooks": "^4.6.0",
         "nodemon": "^3.0.1",
         "vite": "^4.0.0"
+    },
+    "keywords": [
+        "authentication",
+        "security",
+        "jwt",
+        "session-management",
+        "react",
+        "express",
+        "supabase",
+        "bcrypt",
+        "rbac"
+    ],
+    "author": "CSSECDV Student",
+    "license": "MIT",
+    "engines": {
+        "node": ">=16.0.0",
+        "npm": ">=8.0.0"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/your-username/CSSECDV-PRACTICAL-EXERCISE-2.git"
     }
 }

@@ -564,3 +564,148 @@ export async function assignUserRoleSecure(currentUserId, targetUserId, roleId) 
         throw error;
     }
 }
+
+// ================================
+// Session Management Functions
+// ================================
+
+export const createUserSession = async (sessionId, userId, req) => {
+    try {
+        const userAgent = req.headers['user-agent'] || '';
+        const ipAddress = req.ip || req.connection.remoteAddress || '';
+        
+        // Create fingerprint from user agent and IP
+        const fingerprint = Buffer.from(`${userAgent}:${ipAddress}`).toString('base64');
+        
+        const { data, error } = await supabase
+            .from('user_sessions')
+            .insert({
+                session_id: sessionId,
+                user_id: userId,
+                ip_address: ipAddress,
+                user_agent: userAgent,
+                fingerprint: fingerprint,
+                created_at: new Date().toISOString(),
+                expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 minutes
+                is_active: true
+            })
+            .select()
+            .single();
+        
+        if (error) {
+            throw new Error(`Session creation failed: ${error.message}`);
+        }
+        
+        return data;
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const validateSession = async (sessionId) => {
+    try {
+        const { data: session, error } = await supabase
+            .from('user_sessions')
+            .select('*')
+            .eq('session_id', sessionId)
+            .eq('is_active', true)
+            .gte('expires_at', new Date().toISOString())
+            .single();
+        
+        if (error || !session) {
+            return null;
+        }
+        
+        // Update last_accessed timestamp
+        await supabase
+            .from('user_sessions')
+            .update({ last_accessed: new Date().toISOString() })
+            .eq('session_id', sessionId);
+        
+        return session;
+    } catch (error) {
+        return null;
+    }
+};
+
+export const invalidateSession = async (sessionId) => {
+    try {
+        const { error } = await supabase
+            .from('user_sessions')
+            .update({ 
+                is_active: false,
+                invalidated_at: new Date().toISOString()
+            })
+            .eq('session_id', sessionId);
+        
+        if (error) {
+            throw new Error(`Session invalidation failed: ${error.message}`);
+        }
+        
+        return { success: true };
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const invalidateAllUserSessions = async (userId) => {
+    try {
+        const { error } = await supabase
+            .from('user_sessions')
+            .update({ 
+                is_active: false,
+                invalidated_at: new Date().toISOString()
+            })
+            .eq('user_id', userId)
+            .eq('is_active', true);
+        
+        if (error) {
+            throw new Error(`Session invalidation failed: ${error.message}`);
+        }
+        
+        return { success: true };
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const cleanupExpiredSessions = async () => {
+    try {
+        const { error } = await supabase
+            .from('user_sessions')
+            .update({ is_active: false })
+            .lt('expires_at', new Date().toISOString())
+            .eq('is_active', true);
+        
+        if (error) {
+            throw new Error(`Session cleanup failed: ${error.message}`);
+        }
+        
+        return { success: true };
+    } catch (error) {
+        throw error;
+    }
+};
+
+export const extendSession = async (sessionId, minutes = 30) => {
+    try {
+        const newExpiry = new Date(Date.now() + minutes * 60 * 1000).toISOString();
+        
+        const { error } = await supabase
+            .from('user_sessions')
+            .update({ 
+                expires_at: newExpiry,
+                last_accessed: new Date().toISOString()
+            })
+            .eq('session_id', sessionId)
+            .eq('is_active', true);
+        
+        if (error) {
+            throw new Error(`Session extension failed: ${error.message}`);
+        }
+        
+        return { success: true, expires_at: newExpiry };
+    } catch (error) {
+        throw error;
+    }
+};

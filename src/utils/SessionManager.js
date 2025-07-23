@@ -161,6 +161,7 @@ export const refreshSessionToken = async () => {
                 'Authorization': `Bearer ${currentToken}`,
                 'Content-Type': 'application/json',
             },
+            credentials: 'include'
         });
         
         if (!response.ok) {

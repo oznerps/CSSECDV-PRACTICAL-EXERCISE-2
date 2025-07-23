@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import { body, validationResult } from 'express-validator';
+import crypto from 'crypto';
 
 // JWT utilities
 import { verifyToken, generateToken, refreshToken } from './src/utils/jwtUtils.js';
@@ -18,7 +19,11 @@ import {
     canUserAssignRole,
     updateUserRolesSecure,
     getAllUsersWithRoles,
-    getUserWithRolesAndPermissions
+    getUserWithRolesAndPermissions,
+    createUserSession,
+    validateSession,
+    invalidateSession,
+    invalidateAllUserSessions
 } from './src/utils/databaseAPI.js';
 
 // Supabase client
@@ -85,6 +90,10 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// Cookie parser middleware
+import cookieParser from 'cookie-parser';
+app.use(cookieParser());
+
 // ONLY serve static files if dist directory exists (for production)
 import fs from 'fs';
 const distPath = path.join(__dirname, 'dist');
@@ -95,52 +104,76 @@ if (fs.existsSync(distPath)) {
     console.log('Running in development mode - dist directory not found');
 }
 
-// Enhanced authentication middleware with logging
+// Hybrid authentication middleware (JWT + Session)
 const authenticateUser = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
+        const sessionId = req.cookies['__Host-sessionid'];
         const clientIP = req.ip || req.connection.remoteAddress;
         
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            await logAuthEvent('AUTH_FAILED', null, clientIP, 'Missing or invalid authorization header');
+        // Check for both JWT token and session cookie
+        if (!authHeader || !authHeader.startsWith('Bearer ') || !sessionId) {
+            await logAuthEvent('AUTH_FAILED', null, clientIP, 'Missing JWT token or session cookie');
             return res.status(401).json({ 
                 error: 'Authentication required',
-                code: 'MISSING_TOKEN'
+                code: 'MISSING_CREDENTIALS'
             });
         }
 
         const token = authHeader.split(' ')[1];
         
         // Verify JWT token
-        const decoded = verifyToken(token);
+        let decoded;
+        try {
+            decoded = verifyToken(token);
+        } catch (jwtError) {
+            await logAuthEvent('AUTH_FAILED', null, clientIP, `JWT verification failed: ${jwtError.message}`);
+            return res.status(401).json({ 
+                error: 'Invalid authentication token',
+                code: 'INVALID_TOKEN'
+            });
+        }
         
-        // Attach user info from token
+        // Validate session
+        const session = await validateSession(sessionId);
+        if (!session) {
+            await logAuthEvent('AUTH_FAILED', decoded.userId, clientIP, 'Invalid or expired session');
+            return res.status(401).json({ 
+                error: 'Session expired or invalid',
+                code: 'INVALID_SESSION'
+            });
+        }
+        
+        // Verify that session belongs to the same user as the JWT
+        if (session.user_id !== decoded.userId) {
+            await logAuthEvent('AUTH_FAILED', decoded.userId, clientIP, 'Session user mismatch');
+            return res.status(401).json({ 
+                error: 'Authentication mismatch',
+                code: 'SESSION_MISMATCH'
+            });
+        }
+        
+        // Attach user info from token and session
         req.user = {
             id: decoded.userId,
             username: decoded.username,
             email: decoded.email,
             roles: decoded.roles
         };
+        req.sessionId = sessionId;
 
-        await logAuthEvent('AUTH_SUCCESS', decoded.userId, clientIP, 'JWT authentication successful');
+        await logAuthEvent('AUTH_SUCCESS', decoded.userId, clientIP, 'Hybrid authentication successful');
         next();
         
     } catch (error) {
         const clientIP = req.ip || req.connection.remoteAddress;
-        await logAuthEvent('AUTH_FAILED', null, clientIP, `JWT verification failed: ${error.message}`);
+        await logAuthEvent('AUTH_FAILED', null, clientIP, `Authentication error: ${error.message}`);
         
         console.error('Authentication error:', error.message);
         
-        if (error.message.includes('expired')) {
-            return res.status(401).json({ 
-                error: 'Token expired',
-                code: 'TOKEN_EXPIRED'
-            });
-        }
-        
         return res.status(401).json({ 
-            error: 'Invalid authentication token',
-            code: 'INVALID_TOKEN'
+            error: 'Authentication failed',
+            code: 'AUTH_ERROR'
         });
     }
 };
@@ -257,7 +290,7 @@ process.on('uncaughtException', (error) => {
 // ================================
 
 
-// Login endpoint with validation and JWT 
+// Login endpoint with validation, JWT, and session management
 app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
     try {
         const { identifier, password } = req.body;
@@ -270,7 +303,22 @@ app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
         // Generate JWT token
         const token = generateToken(user);
         
-        await logAuthEvent('LOGIN_SUCCESS', user.id, clientIP, `User ${user.username} logged in successfully`);
+        // Generate session ID
+        const sessionId = crypto.randomBytes(32).toString('hex');
+        
+        // Create session in database
+        await createUserSession(sessionId, user.id, req);
+        
+        // Set secure cookie
+        res.cookie('__Host-sessionid', sessionId, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 1800000, // 30 minutes
+            path: '/'
+        });
+        
+        await logAuthEvent('LOGIN_SUCCESS', user.id, clientIP, `User ${user.username} logged in successfully with session ${sessionId.substring(0, 8)}...`);
         
         // Return user data and token - FIXED: Include all user fields
         res.json({
@@ -287,7 +335,8 @@ app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
                 permissions: user.permissions
             },
             token,
-            expires_in: '24h'
+            expires_in: '24h',
+            session_expires_in: '30m'
         });
         
     } catch (error) {
@@ -297,6 +346,79 @@ app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
         console.error('Login error:', error);
         res.status(401).json({
             error: error.message || 'Authentication failed'
+        });
+    }
+});
+
+// Logout endpoint with session invalidation
+app.post('/api/auth/logout', authenticateUser, async (req, res) => {
+    try {
+        const sessionId = req.sessionId;
+        const userId = req.user.id;
+        const clientIP = req.ip || req.connection.remoteAddress;
+        
+        // Invalidate the current session
+        await invalidateSession(sessionId);
+        
+        // Clear the session cookie
+        res.clearCookie('__Host-sessionid', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            path: '/'
+        });
+        
+        await logAuthEvent('LOGOUT_SUCCESS', userId, clientIP, `User ${req.user.username} logged out successfully`);
+        
+        res.json({
+            success: true,
+            message: 'Logout successful',
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        const clientIP = req.ip || req.connection.remoteAddress;
+        await logAuthEvent('LOGOUT_FAILED', req.user?.id, clientIP, `Logout failed: ${error.message}`);
+        
+        console.error('Logout error:', error);
+        res.status(500).json({
+            error: 'Logout failed'
+        });
+    }
+});
+
+// Logout all sessions endpoint
+app.post('/api/auth/logout-all', authenticateUser, async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const clientIP = req.ip || req.connection.remoteAddress;
+        
+        // Invalidate all user sessions
+        await invalidateAllUserSessions(userId);
+        
+        // Clear the current session cookie
+        res.clearCookie('__Host-sessionid', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            path: '/'
+        });
+        
+        await logAuthEvent('LOGOUT_ALL_SUCCESS', userId, clientIP, `User ${req.user.username} logged out from all sessions`);
+        
+        res.json({
+            success: true,
+            message: 'Logged out from all sessions successfully',
+            timestamp: new Date().toISOString()
+        });
+        
+    } catch (error) {
+        const clientIP = req.ip || req.connection.remoteAddress;
+        await logAuthEvent('LOGOUT_ALL_FAILED', req.user?.id, clientIP, `Logout all failed: ${error.message}`);
+        
+        console.error('Logout all error:', error);
+        res.status(500).json({
+            error: 'Logout all failed'
         });
     }
 });

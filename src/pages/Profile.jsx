@@ -76,6 +76,7 @@ export default function Profile() {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
+                credentials: 'include',
                 body: JSON.stringify({
                     display_name: profileData.display_name,
                     email: profileData.email

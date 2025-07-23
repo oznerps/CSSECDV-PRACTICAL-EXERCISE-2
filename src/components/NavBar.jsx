@@ -61,13 +61,39 @@ const NavBar = () => {
         };
     }, [location.pathname]); // Re-check when route changes
 
-    const handleLogout = () => {
-        // Clear user session
-        localStorage.removeItem('auth_session');
-        localStorage.removeItem('currentUser');
-        setUser(null);
-        // Redirect to login page
-        navigate('/login');
+    const handleLogout = async () => {
+        try {
+            // Get current session for the token
+            const sessionData = localStorage.getItem('auth_session');
+            let token = null;
+            
+            if (sessionData) {
+                const session = JSON.parse(sessionData);
+                token = session.token;
+            }
+            
+            // Call server logout endpoint if we have a token
+            if (token) {
+                await fetch('http://localhost:3001/api/auth/logout', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+            }
+        } catch (error) {
+            console.error('Logout error:', error);
+            // Continue with client-side cleanup even if server logout fails
+        } finally {
+            // Clear user session (always do this)
+            localStorage.removeItem('auth_session');
+            localStorage.removeItem('currentUser');
+            setUser(null);
+            // Redirect to login page
+            navigate('/login');
+        }
     };
 
     const hasRole = (roleName) => {

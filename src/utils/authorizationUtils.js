@@ -3,7 +3,8 @@
 export const verifyPermissionServer = async (permission, token) => {
     try {
         const response = await fetch(`http://localhost:3001/api/auth/verify-permission/${permission}`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 'Authorization': `Bearer ${token}` },
+            credentials: 'include'
         });
         return response.ok;
     } catch (error) {
@@ -15,7 +16,8 @@ export const verifyPermissionServer = async (permission, token) => {
 export const verifyRoleServer = async (role, token) => {
     try {
         const response = await fetch(`http://localhost:3001/api/auth/test`, {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 'Authorization': `Bearer ${token}` },
+            credentials: 'include'
         });
         
         if (!response.ok) {
@@ -36,7 +38,8 @@ export const verifyRoleServer = async (role, token) => {
 export const getUserPermissions = async (token) => {
     try {
         const response = await fetch('http://localhost:3001/api/auth/test', {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 'Authorization': `Bearer ${token}` },
+            credentials: 'include'
         });
         
         if (!response.ok) {
@@ -54,7 +57,8 @@ export const getUserPermissions = async (token) => {
 export const getUserRoles = async (token) => {
     try {
         const response = await fetch('http://localhost:3001/api/auth/test', {
-            headers: { 'Authorization': `Bearer ${token}` }
+            headers: { 'Authorization': `Bearer ${token}` },
+            credentials: 'include'
         });
         
         if (!response.ok) {
