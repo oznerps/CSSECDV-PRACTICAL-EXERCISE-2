@@ -1,9 +1,12 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import { userAPI } from '../utils/apiInterceptor';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { formatDate, formatUserFriendlyDateTime } from '../utils/dateUtils';
 
 export default function Profile() {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const { user, loading: authLoading, checkSession } = useAuth();
     const [profileData, setProfileData] = useState({
         display_name: '',
         email: ''
@@ -13,46 +16,13 @@ export default function Profile() {
     const navigate = useNavigate();
 
     useEffect(() => {
-        const loadUserData = () => {
-            try {
-                // Check new session format first
-                const sessionData = localStorage.getItem('auth_session');
-                if (sessionData) {
-                    const session = JSON.parse(sessionData);
-                    if (session && session.user) {
-                        setUser(session.user);
-                        setProfileData({
-                            display_name: session.user.display_name || '',
-                            email: session.user.email || ''
-                        });
-                        setLoading(false);
-                        return;
-                    }
-                }
-                
-                // Fallback to old session format
-                const oldUserData = localStorage.getItem('currentUser');
-                if (oldUserData) {
-                    const parsedUser = JSON.parse(oldUserData);
-                    setUser(parsedUser);
-                    setProfileData({
-                        display_name: parsedUser.display_name || '',
-                        email: parsedUser.email || ''
-                    });
-                    setLoading(false);
-                    return;
-                }
-                
-                // No user found, redirect to login
-                navigate('/login');
-            } catch (error) {
-                console.error('Error loading user data:', error);
-                navigate('/login');
-            }
-        };
-
-        loadUserData();
-    }, [navigate]);
+        if (user) {
+            setProfileData({
+                display_name: user.display_name || '',
+                email: user.email || ''
+            });
+        }
+    }, [user]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -60,45 +30,13 @@ export default function Profile() {
         setIsUpdating(true);
         
         try {
-            // Get current session
-            const sessionData = localStorage.getItem('auth_session');
-            if (!sessionData) {
-                throw new Error('No session found');
-            }
-
-            const session = JSON.parse(sessionData);
-            const token = session.token;
-
-            // Call the server API to update user profile
-            const response = await fetch(`http://localhost:3001/api/users/${user.id}`, {
-                method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                credentials: 'include',
-                body: JSON.stringify({
-                    display_name: profileData.display_name,
-                    email: profileData.email
-                })
+            const result = await userAPI.update(user.id, {
+                display_name: profileData.display_name,
+                email: profileData.email
             });
 
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Failed to update profile');
-            }
-
-            // Update local session with new data
-            session.user = {
-                ...session.user,
-                display_name: profileData.display_name,
-                email: profileData.email,
-                updated_at: new Date().toISOString()
-            };
-            
-            localStorage.setItem('auth_session', JSON.stringify(session));
-            setUser(session.user);
+            // Refresh user data from server
+            await checkSession();
             setMessage('Profile updated successfully!');
 
         } catch (error) {
@@ -109,229 +47,211 @@ export default function Profile() {
         }
     };
 
-    const handleLogout = () => {
-        localStorage.removeItem('auth_session');
-        localStorage.removeItem('currentUser');
-        navigate('/login');
-    };
+    // Date formatting functions moved to dateUtils.js
 
-    const formatDate = (dateString) => {
-        if (!dateString) return 'Not available';
-        try {
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) return 'Not available';
-            return date.toLocaleDateString();
-        } catch (error) {
-            return 'Not available';
-        }
-    };
-
-    const formatDateTime = (dateString) => {
-        if (!dateString) return 'Never';
-        try {
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) return 'Never';
-            return date.toLocaleString();
-        } catch (error) {
-            return 'Never';
-        }
-    };
-
-    if (loading) {
-        return (
-            <div className="dashboard-container">
-                <h2>Loading profile...</h2>
-            </div>
-        );
+    if (authLoading) {
+        return <LoadingSpinner size="large" message="Loading your profile..." />;
     }
 
     if (!user) {
         return (
-            <div className="dashboard-container">
-                <h2>Profile not found</h2>
-                <p>Unable to load your profile. Please try logging in again.</p>
-                <Link to="/login">Go to Login</Link>
+            <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '50vh',
+                flexDirection: 'column',
+                color: '#dc3545'
+            }}>
+                <h3>Profile not found</h3>
+                <p>Unable to load your profile. You may need to log in again.</p>
             </div>
         );
     }
 
     return (
-        <div className="dashboard-container">
-            <h2>Your Profile</h2>
-            
-            {/* Current User Information */}
-            <div style={{ 
-                backgroundColor: '#f8f9fa', 
-                padding: '1.5rem', 
-                borderRadius: '8px',
-                marginBottom: '2rem'
-            }}>
-                <h3>Current Information</h3>
-                <p><strong>Username:</strong> {user.username}</p>
-                <p><strong>Current Display Name:</strong> {user.display_name}</p>
-                <p><strong>Current Email:</strong> {user.email}</p>
-                <p><strong>Account Created:</strong> {formatDate(user.created_at)}</p>
-                <p><strong>Last Login:</strong> {formatDateTime(user.last_login)}</p>
-                {user.roles && user.roles.length > 0 && (
-                    <p><strong>Roles:</strong> {
-                        user.roles.map(role => 
-                            typeof role === 'string' ? role : role.name
-                        ).join(', ')
-                    }</p>
-                )}
-            </div>
+        <div style={{
+            minHeight: '100vh',
+            backgroundColor: '#f8f9fa',
+            padding: '2rem 1rem'
+        }}>
+            <div style={{ maxWidth: '800px', margin: '0 auto' }}>
+                <div style={{
+                    backgroundColor: '#007bff',
+                    color: 'white',
+                    padding: '2rem',
+                    borderRadius: '12px',
+                    marginBottom: '2rem',
+                    textAlign: 'center'
+                }}>
+                    <h1 style={{ margin: '0 0 0.5rem 0', fontSize: '2rem' }}>
+                        Profile Settings
+                    </h1>
+                    <p style={{ margin: 0, fontSize: '1.1rem', opacity: 0.9 }}>
+                        Manage your personal information and account settings
+                    </p>
+                </div>
 
-            {/* Update Form */}
-            <div style={{ 
-                backgroundColor: '#ffffff', 
-                padding: '1.5rem', 
-                borderRadius: '8px',
-                border: '1px solid #dee2e6',
-                marginBottom: '2rem'
-            }}>
-                <h3>Update Profile</h3>
-                
-                {message && (
-                    <div style={{ 
-                        padding: '1rem', 
-                        marginBottom: '1rem',
-                        backgroundColor: message.includes('successfully') ? '#d4edda' : '#f8d7da',
-                        color: message.includes('successfully') ? '#155724' : '#721c24',
-                        border: `1px solid ${message.includes('successfully') ? '#c3e6cb' : '#f5c6cb'}`,
-                        borderRadius: '4px'
+                {/* Current User Information */}
+                <div style={{ 
+                    backgroundColor: 'white', 
+                    padding: '2rem', 
+                    borderRadius: '12px',
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.1)',
+                    marginBottom: '2rem'
+                }}>
+                    <h3 style={{ margin: '0 0 1.5rem 0', color: '#333' }}>Current Information</h3>
+                    
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+                        gap: '1rem',
+                        marginBottom: '1rem'
                     }}>
-                        {message}
+                        <div>
+                            <p style={{ margin: '0.5rem 0' }}>
+                                <strong>Username:</strong> {user.username}
+                            </p>
+                            <p style={{ margin: '0.5rem 0' }}>
+                                <strong>Display Name:</strong> {user.display_name || 'Not set'}
+                            </p>
+                            <p style={{ margin: '0.5rem 0' }}>
+                                <strong>Email:</strong> {user.email}
+                            </p>
+                        </div>
+                        <div>
+                            <p style={{ margin: '0.5rem 0' }}>
+                                <strong>Member Since:</strong> {formatDate(user.created_at)}
+                            </p>
+                            <p style={{ margin: '0.5rem 0' }}>
+                                <strong>Last Login:</strong> {formatUserFriendlyDateTime(user.last_login)}
+                            </p>
+                            {user.roles && user.roles.length > 0 && (
+                                <p style={{ margin: '0.5rem 0' }}>
+                                    <strong>Roles:</strong> {
+                                        user.roles.map(role => 
+                                            typeof role === 'string' ? role : role.name
+                                        ).join(', ')
+                                    }
+                                </p>
+                            )}
+                        </div>
                     </div>
-                )}
-                
-                <form onSubmit={handleSubmit}>
-                    <div style={{ marginBottom: '1rem' }}>
-                        <label style={{ 
-                            display: 'block', 
-                            marginBottom: '0.5rem', 
-                            fontWeight: 'bold' 
-                        }}>
-                            Display Name:
-                        </label>
-                        <input
-                            type="text"
-                            value={profileData.display_name}
-                            onChange={(e) => setProfileData({
-                                ...profileData, 
-                                display_name: e.target.value
-                            })}
-                            style={{
-                                width: '100%',
-                                padding: '0.75rem',
-                                border: '1px solid #ced4da',
-                                borderRadius: '4px',
-                                fontSize: '1rem',
-                                maxWidth: '400px'
-                            }}
-                            required
-                            disabled={isUpdating}
-                        />
-                    </div>
-                    
-                    <div style={{ marginBottom: '1.5rem' }}>
-                        <label style={{ 
-                            display: 'block', 
-                            marginBottom: '0.5rem', 
-                            fontWeight: 'bold' 
-                        }}>
-                            Email Address:
-                        </label>
-                        <input
-                            type="email"
-                            value={profileData.email}
-                            onChange={(e) => setProfileData({
-                                ...profileData, 
-                                email: e.target.value
-                            })}
-                            style={{
-                                width: '100%',
-                                padding: '0.75rem',
-                                border: '1px solid #ced4da',
-                                borderRadius: '4px',
-                                fontSize: '1rem',
-                                maxWidth: '400px'
-                            }}
-                            required
-                            disabled={isUpdating}
-                        />
-                    </div>
-                    
-                    <button 
-                        type="submit"
-                        disabled={isUpdating}
-                        style={{
-                            padding: '0.75rem 1.5rem',
-                            backgroundColor: isUpdating ? '#6c757d' : '#007bff',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: isUpdating ? 'not-allowed' : 'pointer',
-                            fontWeight: 'bold',
-                            marginRight: '1rem'
-                        }}
-                    >
-                        {isUpdating ? 'Updating...' : 'Save Changes'}
-                    </button>
-                    
-                    <Link 
-                        to="/dashboard"
-                        style={{
-                            padding: '0.75rem 1.5rem',
-                            backgroundColor: '#6c757d',
-                            color: 'white',
-                            textDecoration: 'none',
-                            borderRadius: '4px',
-                            fontWeight: 'bold'
-                        }}
-                    >
-                        Back to Dashboard
-                    </Link>
-                </form>
-            </div>
+                </div>
 
-            {/* Navigation Options */}
-            <div style={{ 
-                backgroundColor: '#e9ecef', 
-                padding: '1rem', 
-                borderRadius: '4px',
-                marginBottom: '2rem'
-            }}>
-                <h4>Quick Navigation</h4>
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                    <Link to="/dashboard" style={{ color: '#007bff', textDecoration: 'none' }}>
-                        Dashboard
-                    </Link>
-                    {user.roles && user.roles.some(role => 
-                        (typeof role === 'string' ? role : role.name) === 'admin'
-                    ) && (
-                        <>
-                            <Link to="/admin" style={{ color: '#dc3545', textDecoration: 'none' }}>
-                                Admin Dashboard
-                            </Link>
-                            <Link to="/users" style={{ color: '#28a745', textDecoration: 'none' }}>
-                                User Management
-                            </Link>
-                        </>
+                {/* Update Form */}
+                <div style={{ 
+                    backgroundColor: 'white', 
+                    padding: '2rem', 
+                    borderRadius: '12px',
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.1)'
+                }}>
+                    <h3 style={{ margin: '0 0 1.5rem 0', color: '#333' }}>Update Profile</h3>
+                    
+                    {message && (
+                        <div style={{ 
+                            padding: '1rem', 
+                            marginBottom: '1.5rem',
+                            backgroundColor: message.includes('successfully') ? '#d4edda' : '#f8d7da',
+                            color: message.includes('successfully') ? '#155724' : '#721c24',
+                            border: `1px solid ${message.includes('successfully') ? '#c3e6cb' : '#f5c6cb'}`,
+                            borderRadius: '8px'
+                        }}>
+                            {message}
+                        </div>
                     )}
+                    
+                    <form onSubmit={handleSubmit}>
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <label style={{ 
+                                display: 'block', 
+                                marginBottom: '0.5rem', 
+                                fontWeight: 'bold',
+                                color: '#333'
+                            }}>
+                                Display Name:
+                            </label>
+                            <input
+                                type="text"
+                                value={profileData.display_name}
+                                onChange={(e) => setProfileData({
+                                    ...profileData, 
+                                    display_name: e.target.value
+                                })}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.75rem',
+                                    border: '2px solid #e9ecef',
+                                    borderRadius: '8px',
+                                    fontSize: '1rem',
+                                    maxWidth: '500px',
+                                    transition: 'border-color 0.3s ease'
+                                }}
+                                onFocus={(e) => e.target.style.borderColor = '#007bff'}
+                                onBlur={(e) => e.target.style.borderColor = '#e9ecef'}
+                                required
+                                disabled={isUpdating}
+                            />
+                        </div>
+                        
+                        <div style={{ marginBottom: '2rem' }}>
+                            <label style={{ 
+                                display: 'block', 
+                                marginBottom: '0.5rem', 
+                                fontWeight: 'bold',
+                                color: '#333'
+                            }}>
+                                Email Address:
+                            </label>
+                            <input
+                                type="email"
+                                value={profileData.email}
+                                onChange={(e) => setProfileData({
+                                    ...profileData, 
+                                    email: e.target.value
+                                })}
+                                style={{
+                                    width: '100%',
+                                    padding: '0.75rem',
+                                    border: '2px solid #e9ecef',
+                                    borderRadius: '8px',
+                                    fontSize: '1rem',
+                                    maxWidth: '500px',
+                                    transition: 'border-color 0.3s ease'
+                                }}
+                                onFocus={(e) => e.target.style.borderColor = '#007bff'}
+                                onBlur={(e) => e.target.style.borderColor = '#e9ecef'}
+                                required
+                                disabled={isUpdating}
+                            />
+                        </div>
+                        
+                        <button 
+                            type="submit"
+                            disabled={isUpdating}
+                            style={{
+                                padding: '0.75rem 2rem',
+                                backgroundColor: isUpdating ? '#6c757d' : '#007bff',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                cursor: isUpdating ? 'not-allowed' : 'pointer',
+                                fontWeight: 'bold',
+                                fontSize: '1rem',
+                                transition: 'background-color 0.3s ease'
+                            }}
+                            onMouseEnter={(e) => {
+                                if (!isUpdating) e.target.style.backgroundColor = '#0056b3';
+                            }}
+                            onMouseLeave={(e) => {
+                                if (!isUpdating) e.target.style.backgroundColor = '#007bff';
+                            }}
+                        >
+                            {isUpdating ? 'Updating...' : 'Save Changes'}
+                        </button>
+                    </form>
                 </div>
             </div>
-
-            <button onClick={handleLogout} style={{
-                padding: '0.75rem 1.5rem',
-                backgroundColor: '#dc3545',
-                border: 'none',
-                borderRadius: '4px',
-                color: '#ffffff',
-                cursor: 'pointer',
-                fontWeight: 'bold'
-            }}>
-                Logout
-            </button>
         </div>
     );
 }

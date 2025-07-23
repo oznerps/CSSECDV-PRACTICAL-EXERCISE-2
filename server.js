@@ -363,6 +363,7 @@ app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
             httpOnly: true,
             sameSite: 'strict', // CSSECDV requirement: Must use 'strict' for session cookies
             maxAge: 1800000, // 30 minutes
+            //maxAge: 60000,    // 1 minute (timeout testing purposes)
             path: '/'
         };
         
@@ -920,7 +921,7 @@ app.listen(PORT, () => {
     console.log('CORS Configuration:');
     console.log('  - Origin: Dynamic function with allowed localhost variants');
     console.log('  - Credentials: true');
-    console.log('  - Cookie SameSite: lax');
+    console.log('  - Cookie SameSite: strict');
     console.log(`  - Cookie Name: ${process.env.NODE_ENV === 'production' ? '__Host-sessionid' : 'sessionid'}`);
     console.log('  - Session cleanup: Every 15 minutes');
     

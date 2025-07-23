@@ -1,303 +1,218 @@
-import { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
+import { useSessionTimeout } from '../contexts/SessionTimeoutContext';
+import DashboardCard from '../components/DashboardCard';
+import UserInfoCard from '../components/UserInfoCard';
+import LoadingSpinner from '../components/LoadingSpinner';
 
 const Dashboard = () => {
-    const [user, setUser] = useState(null);
-    const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
+    const { resetSessionTimers } = useSessionTimeout();
+    const { 
+        user, 
+        loading, 
+        error, 
+        hasRole, 
+        hasPermission, 
+        getRoleLevel 
+    } = useAuth();
 
-    useEffect(() => {
-        const loadUserData = () => {
-            try {
-                const userData = localStorage.getItem('auth_session');
-                if (userData) {
-                    const session = JSON.parse(userData);
-                    if (session && session.user) {
-                        setUser(session.user);
-                    } else {
-                        navigate('/login');
-                    }
-                } else {
-                    // Fallback to old session format
-                    const oldUserData = localStorage.getItem('currentUser');
-                    if (oldUserData) {
-                        const parsedUser = JSON.parse(oldUserData);
-                        setUser(parsedUser);
-                    } else {
-                        navigate('/login');
-                    }
-                }
-            } catch (error) {
-                console.error('Error loading user data:', error);
-                localStorage.removeItem('auth_session');
-                localStorage.removeItem('currentUser');
-                navigate('/login');
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        loadUserData();
-    }, [navigate]);
-
-    const handleLogout = () => {
-        // Clear all session data
-        localStorage.removeItem('auth_session');
-        localStorage.removeItem('currentUser');
-        // Redirect to login
-        navigate('/login');
-    };
-
-    const formatDate = (dateString) => {
-        if (!dateString) return 'Not available';
-        
-        try {
-            const date = new Date(dateString);
-            // Check if date is valid
-            if (isNaN(date.getTime())) {
-                return 'Not available';
-            }
-            return date.toLocaleDateString();
-        } catch (error) {
-            console.error('Error formatting date:', error);
-            return 'Not available';
-        }
-    };
-
-    const formatDateTime = (dateString) => {
-        if (!dateString) return 'Never';
-        
-        try {
-            const date = new Date(dateString);
-            if (isNaN(date.getTime())) {
-                return 'Never';
-            }
-            return date.toLocaleString();
-        } catch (error) {
-            console.error('Error formatting datetime:', error);
-            return 'Never';
-        }
-    };
-
-    const getUserRoles = () => {
-        if (!user || !user.roles) return [];
-        return Array.isArray(user.roles) ? user.roles : [];
-    };
-
-    const hasRole = (roleName) => {
-        const roles = getUserRoles();
-        return roles.some(role => 
-            typeof role === 'string' ? role === roleName : role.name === roleName
-        );
-    };
-
-    const hasPermission = (permissionName) => {
-        if (!user || !user.permissions) return false;
-        return user.permissions.includes(permissionName);
+    const handleCardClick = (path) => {
+        resetSessionTimers(); // Reset session on user activity
+        navigate(path);
     };
 
     if (loading) {
+        return <LoadingSpinner size="large" message="Loading your dashboard..." />;
+    }
+
+    if (error || !user) {
         return (
-            <div className="dashboard-container">
-                <p>Loading...</p>
+            <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '50vh',
+                flexDirection: 'column',
+                color: '#dc3545'
+            }}>
+                <h3>Error Loading Dashboard</h3>
+                <p>{error || 'User data not available'}</p>
+                <button 
+                    onClick={() => navigate('/login')}
+                    style={{
+                        padding: '0.75rem 1.5rem',
+                        backgroundColor: '#007bff',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer'
+                    }}
+                >
+                    Return to Login
+                </button>
             </div>
         );
     }
 
+    const getAvailableActions = () => {
+        const actions = [];
+        
+        // Home - Available to all users
+        actions.push({
+            id: 'home',
+            title: 'Home',
+            description: 'Return to the welcome home page',
+            icon: '🏠',
+            linkTo: '/home',
+            backgroundColor: '#6f42c1'
+        });
+
+        // Profile - Available to all users
+        actions.push({
+            id: 'profile',
+            title: 'Edit Profile',
+            description: 'Update your personal information and settings',
+            icon: '👤',
+            linkTo: '/profile',
+            backgroundColor: '#007bff'
+        });
+
+        // User Management - Managers and Admins
+        if (hasRole('manager') || hasPermission('manage_users')) {
+            actions.push({
+                id: 'users',
+                title: 'User Management',
+                description: 'Manage users, roles, and permissions',
+                icon: '👥',
+                linkTo: '/users',
+                backgroundColor: '#28a745'
+            });
+        }
+
+        // Admin Dashboard - Admins only
+        if (hasRole('admin')) {
+            actions.push({
+                id: 'admin',
+                title: 'Admin Dashboard',
+                description: 'Full system administration and controls',
+                icon: '🛡️',
+                linkTo: '/admin',
+                backgroundColor: '#dc3545'
+            });
+        }
+
+        return actions;
+    };
+
+    const getRoleMessage = () => {
+        const roleLevel = getRoleLevel();
+        switch (roleLevel) {
+            case 'admin':
+                return {
+                    title: 'Administrator Access',
+                    message: 'You have full system privileges and access to all features.',
+                    color: '#dc3545'
+                };
+            case 'manager':
+                return {
+                    title: 'Manager Access',
+                    message: 'You can manage users and have elevated permissions.',
+                    color: '#28a745'
+                };
+            default:
+                return {
+                    title: 'Standard Access',
+                    message: 'Welcome! You have access to your profile and basic features.',
+                    color: '#007bff'
+                };
+        }
+    };
+
+    const roleMessage = getRoleMessage();
+    const availableActions = getAvailableActions();
+
     return (
-        <div className="dashboard-container">
-            <h2>Dashboard</h2>
-            
-            {user ? (
-                <>
-                    {/* Admin Access Banner - For Admin Users Only */}
-                    {hasRole('admin') && (
-                        <div style={{ 
-                            backgroundColor: '#dc3545', 
-                            color: 'white', 
-                            padding: '1.5rem', 
-                            borderRadius: '8px',
-                            marginBottom: '2rem',
-                            textAlign: 'center'
-                        }}>
-                            <h3 style={{ margin: '0 0 1rem 0' }}>🛡️ Administrator Access</h3>
-                            <p style={{ margin: '0 0 1rem 0' }}>
-                                You have full administrator privileges. Access all admin functions below.
-                            </p>
-                            <Link 
-                                to="/admin" 
-                                style={{ 
-                                    padding: '1rem 2rem', 
-                                    backgroundColor: 'white', 
-                                    color: '#dc3545', 
-                                    textDecoration: 'none', 
-                                    borderRadius: '4px',
-                                    fontWeight: 'bold',
-                                    fontSize: '1.1rem',
-                                    display: 'inline-block'
-                                }}
-                            >
-                                Open Admin Dashboard
-                            </Link>
-                        </div>
-                    )}
+        <div style={{
+            minHeight: '100vh',
+            backgroundColor: '#f8f9fa',
+            padding: '2rem 1rem'
+        }}>
+            <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
+                {/* Role-based welcome banner */}
+                <div style={{
+                    backgroundColor: roleMessage.color,
+                    color: 'white',
+                    padding: '2rem',
+                    borderRadius: '12px',
+                    marginBottom: '2rem',
+                    textAlign: 'center',
+                    boxShadow: '0 4px 16px rgba(0,0,0,0.1)'
+                }}>
+                    <h1 style={{ margin: '0 0 0.5rem 0', fontSize: '2rem' }}>
+                        {roleMessage.title}
+                    </h1>
+                    <p style={{ margin: 0, fontSize: '1.1rem', opacity: 0.9 }}>
+                        {roleMessage.message}
+                    </p>
+                </div>
 
-                    {/* Manager Access Banner - For Manager Users (Non-Admin) */}
-                    {hasRole('manager') && !hasRole('admin') && (
-                        <div style={{ 
-                            backgroundColor: '#28a745', 
-                            color: 'white', 
-                            padding: '1.5rem', 
-                            borderRadius: '8px',
-                            marginBottom: '2rem',
-                            textAlign: 'center'
-                        }}>
-                            <h3 style={{ margin: '0 0 1rem 0' }}>👥 Manager Access</h3>
-                            <p style={{ margin: '0 0 1rem 0' }}>
-                                You have manager privileges. Access user management functions below.
-                            </p>
-                            <Link 
-                                to="/users" 
-                                style={{ 
-                                    padding: '1rem 2rem', 
-                                    backgroundColor: 'white', 
-                                    color: '#28a745', 
-                                    textDecoration: 'none', 
-                                    borderRadius: '4px',
-                                    fontWeight: 'bold',
-                                    fontSize: '1.1rem',
-                                    display: 'inline-block'
-                                }}
-                            >
-                                Open User Management
-                            </Link>
-                        </div>
-                    )}
+                {/* User Information Card */}
+                <UserInfoCard user={user} />
 
-                    {/* User Information */}
-                    <div className="user-info">
-                        <p><strong>Username:</strong> {user.username || 'Not available'}</p>
-                        <p><strong>Display Name:</strong> {user.display_name || 'Not available'}</p>
-                        <p><strong>Email:</strong> {user.email || 'Not available'}</p>
-                        <p><strong>Account Created:</strong> {formatDate(user.created_at)}</p>
-                        <p><strong>Last Login:</strong> {formatDateTime(user.last_login)}</p>
-                        
-                        {/* Show user roles if available */}
-                        {getUserRoles().length > 0 && (
-                            <p><strong>Roles:</strong> {
-                                getUserRoles().map(role => 
-                                    typeof role === 'string' ? role : role.name
-                                ).join(', ')
-                            }</p>
-                        )}
-                    </div>
-
-                    {/* Available Actions Based on Role */}
-                    <div className="dashboard-navigation" style={{ 
-                        marginTop: '2rem', 
-                        padding: '1rem', 
-                        backgroundColor: '#f8f9fa', 
-                        borderRadius: '8px' 
+                {/* Available Actions */}
+                <div style={{
+                    backgroundColor: 'white',
+                    padding: '2rem',
+                    borderRadius: '12px',
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.1)'
+                }}>
+                    <h2 style={{ 
+                        margin: '0 0 1.5rem 0', 
+                        color: '#333',
+                        fontSize: '1.5rem'
                     }}>
-                        <h3>Available Actions</h3>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            
-                            {/* Profile link - all authenticated users */}
-                            <Link 
-                                to="/profile" 
-                                style={{ 
-                                    padding: '0.75rem 1rem', 
-                                    backgroundColor: '#007bff', 
-                                    color: 'white', 
-                                    textDecoration: 'none', 
-                                    borderRadius: '4px',
-                                    textAlign: 'center'
-                                }}
-                            >
-                                📝 Edit Profile
-                            </Link>
-
-                            {/* User Management - for managers and admins */}
-                            {(hasRole('manager') || hasPermission('manage_users')) && (
-                                <Link 
-                                    to="/users" 
-                                    style={{ 
-                                        padding: '0.75rem 1rem', 
-                                        backgroundColor: '#28a745', 
-                                        color: 'white', 
-                                        textDecoration: 'none', 
-                                        borderRadius: '4px',
-                                        textAlign: 'center'
-                                    }}
-                                >
-                                    👥 Manage Users & Roles
-                                </Link>
-                            )}
-
-                            {/* Admin Dashboard - only for admin users */}
-                            {hasRole('admin') && (
-                                <Link 
-                                    to="/admin" 
-                                    style={{ 
-                                        padding: '0.75rem 1rem', 
-                                        backgroundColor: '#dc3545', 
-                                        color: 'white', 
-                                        textDecoration: 'none', 
-                                        borderRadius: '4px',
-                                        textAlign: 'center'
-                                    }}
-                                >
-                                    🛡️ Admin Dashboard
-                                </Link>
-                            )}
-                        </div>
-
-                        {/* Role-specific notes */}
-                        {hasRole('admin') && (
-                            <div style={{
-                                marginTop: '1rem',
-                                padding: '0.75rem',
-                                backgroundColor: '#fff3cd',
-                                border: '1px solid #ffeaa7',
-                                borderRadius: '4px',
-                                fontSize: '0.9rem',
-                                textAlign: 'center'
-                            }}>
-                                <strong>Admin Note:</strong> You have access to both user management and full admin dashboard with system controls.
-                            </div>
-                        )}
-
-                        {hasRole('manager') && !hasRole('admin') && (
-                            <div style={{
-                                marginTop: '1rem',
-                                padding: '0.75rem',
-                                backgroundColor: '#d1ecf1',
-                                border: '1px solid #bee5eb',
-                                borderRadius: '4px',
-                                fontSize: '0.9rem',
-                                textAlign: 'center'
-                            }}>
-                                <strong>Manager Note:</strong> You can manage users and assign basic roles. Contact an admin for advanced system functions.
-                            </div>
-                        )}
+                        Available Actions
+                    </h2>
+                    
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+                        gap: '1.5rem'
+                    }}>
+                        {availableActions.map(action => (
+                            <DashboardCard
+                                key={action.id}
+                                title={action.title}
+                                description={action.description}
+                                icon={action.icon}
+                                linkTo={action.linkTo}
+                                backgroundColor={action.backgroundColor}
+                            />
+                        ))}
                     </div>
 
-                    <button onClick={handleLogout} style={{
+                    {/* Role-specific information */}
+                    <div style={{
                         marginTop: '2rem',
-                        padding: '0.75rem 1.5rem',
-                        backgroundColor: '#e67e22',
-                        border: 'none',
-                        borderRadius: '4px',
-                        color: '#ffffff',
-                        cursor: 'pointer',
-                        fontWeight: 'bold'
+                        padding: '1rem',
+                        backgroundColor: '#f8f9fa',
+                        borderRadius: '8px',
+                        borderLeft: `4px solid ${roleMessage.color}`
                     }}>
-                        Logout
-                    </button>
-                </>
-            ) : (
-                <p>User data not available</p>
-            )}
+                        <p style={{ 
+                            margin: 0, 
+                            fontSize: '0.9rem',
+                            color: '#666'
+                        }}>
+                            <strong>Access Level:</strong> {getRoleLevel().toUpperCase()} • 
+                            <strong> Available Features:</strong> {availableActions.length} • 
+                            <strong> Session:</strong> Secure & Active
+                        </p>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

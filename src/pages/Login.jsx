@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { setSession } from '../utils/SessionManager';
+import { setSession, isAuthenticated } from '../utils/SessionManager';
 
 const Login = () => {
     const [identifier, setIdentifier] = useState('');
@@ -8,6 +8,14 @@ const Login = () => {
     const [error, setError] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
+
+    // Redirect authenticated users away from login page
+    useEffect(() => {
+        if (isAuthenticated()) {
+            console.log('User already authenticated, redirecting to home');
+            navigate('/home', { replace: true });
+        }
+    }, [navigate]);
 
     const makeLoginRequest = async (retryCount = 0) => {
         const response = await fetch('http://localhost:3001/api/auth/login', {
@@ -57,8 +65,10 @@ const Login = () => {
                 expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
             });
             
-            console.log('Login successful, redirecting to dashboard');
-            navigate('/dashboard');
+            console.log('Login successful, redirecting to home page');
+            
+            // Force a page refresh to ensure all components recognize the new auth state
+            window.location.href = '/home';
             
         } catch (error) {
             console.error('Authentication failed:', error);
