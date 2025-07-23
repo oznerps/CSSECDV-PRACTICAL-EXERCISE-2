@@ -98,7 +98,7 @@ export const authenticateUser = async (identifier, password) => {
         // Determine if identifier is email or username
         const isEmail = sanitizedIdentifier.includes('@');
 
-        // FIXED: Use proper Supabase query syntax
+        //Use proper Supabase query syntax
         let query;
         if (isEmail) {
             // Search by email (case-insensitive)
@@ -527,7 +527,7 @@ export async function getUserWithRolesAndPermissions(userId) {
 }
 
 /**
- * Enhanced role assignment with validation
+ * role assignment with validation
  */
 export async function assignUserRoleSecure(currentUserId, targetUserId, roleId) {
     try {
@@ -561,6 +561,79 @@ export async function assignUserRoleSecure(currentUserId, targetUserId, roleId) 
         return { success: true };
         
     } catch (error) {
+        throw error;
+    }
+}
+
+/**
+ * Delete user securely with permission checks
+ */
+export async function deleteUserSecure(currentUserId, targetUserId) {
+    try {
+        // Prevent self-deletion for safety
+        if (currentUserId === parseInt(targetUserId)) {
+            throw new Error('Cannot delete your own account');
+        }
+        
+        // Check if current user has manage_users permission
+        const hasPermission = await userHasPermission(currentUserId, 'manage_users');
+        if (!hasPermission) {
+            throw new Error('Insufficient permissions to delete users');
+        }
+        
+        // Get target user info for logging
+        const { data: targetUser, error: userError } = await supabase
+            .from('users')
+            .select('id, username, display_name, email')
+            .eq('id', targetUserId)
+            .single();
+        
+        if (userError || !targetUser) {
+            throw new Error('Target user not found');
+        }
+        
+        // Additional safety check - prevent deletion of other admin users unless deleter is also admin
+        const currentUserRoles = await getUserRoles(currentUserId);
+        const targetUserRoles = await getUserRoles(targetUserId);
+        
+        const isCurrentUserAdmin = currentUserRoles.some(role => role.name === 'admin');
+        const isTargetUserAdmin = targetUserRoles.some(role => role.name === 'admin');
+        
+        // Only admins can delete other admins
+        if (isTargetUserAdmin && !isCurrentUserAdmin) {
+            throw new Error('Only administrators can delete admin accounts');
+        }
+        
+        // Delete user (this will cascade delete user_roles due to foreign key constraint)
+        const { error: deleteError } = await supabase
+            .from('users')
+            .delete()
+            .eq('id', targetUserId);
+        
+        if (deleteError) {
+            throw new Error(`User deletion failed: ${deleteError.message}`);
+        }
+        
+        // Log the deletion (import this function in server.js if needed)
+        try {
+            const { logUserDeletion } = await import('./auditLogger.js');
+            await logUserDeletion(currentUserId, targetUser);
+        } catch (logError) {
+            console.error('Logging error:', logError);
+            // Don't fail the operation if logging fails
+        }
+        
+        return {
+            success: true,
+            deletedUser: {
+                id: targetUser.id,
+                username: targetUser.username,
+                display_name: targetUser.display_name
+            }
+        };
+        
+    } catch (error) {
+        console.error('Error in deleteUserSecure:', error);
         throw error;
     }
 }

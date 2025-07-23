@@ -77,22 +77,68 @@ const apiLimiter = rateLimit({
     }
 });
 
+// Cookie parser middleware (must be before CORS)
+import cookieParser from 'cookie-parser';
+app.use(cookieParser());
+
 // Apply rate limiting
 app.use('/api/auth', authLimiter);
 app.use('/api', apiLimiter);
 
 // Middleware configuration
 app.use(express.json());
+
+// Enhanced CORS configuration for hybrid authentication
 app.use(cors({
-    origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    origin: function (origin, callback) {
+        // Allow requests with no origin (mobile apps, curl requests, etc.)
+        if (!origin) return callback(null, true);
+        
+        const allowedOrigins = [
+            'http://localhost:5173',
+            'http://127.0.0.1:5173',
+            'http://localhost:3000', // In case frontend runs on 3000
+            'http://127.0.0.1:3000'
+        ];
+        
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            console.log('CORS blocked origin:', origin);
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    credentials: true, // Essential for cookies
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
+    allowedHeaders: [
+        'Content-Type', 
+        'Authorization', 
+        'Cookie',
+        'Set-Cookie',
+        'X-Requested-With',
+        'Accept',
+        'Origin',
+        'Cache-Control',
+        'Pragma'
+    ],
+    exposedHeaders: ['Set-Cookie'],
+    preflightContinue: false,
+    optionsSuccessStatus: 200, // For legacy browser support
+    maxAge: 86400 // 24 hours preflight cache
 }));
 
-// Cookie parser middleware
-import cookieParser from 'cookie-parser';
-app.use(cookieParser());
+// Debug middleware to log request details (only in development)
+if (process.env.NODE_ENV !== 'production') {
+    app.use((req, res, next) => {
+        console.log(`${req.method} ${req.path}`, {
+            origin: req.get('Origin'),
+            userAgent: req.get('User-Agent')?.substring(0, 50) + '...',
+            cookies: Object.keys(req.cookies || {}),
+            hasAuth: !!req.get('Authorization')
+        });
+        next();
+    });
+}
 
 // ONLY serve static files if dist directory exists (for production)
 import fs from 'fs';
@@ -108,7 +154,9 @@ if (fs.existsSync(distPath)) {
 const authenticateUser = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
-        const sessionId = req.cookies['__Host-sessionid'];
+        // Use appropriate cookie name based on environment
+        const cookieName = process.env.NODE_ENV === 'production' ? '__Host-sessionid' : 'sessionid';
+        const sessionId = req.cookies[cookieName];
         const clientIP = req.ip || req.connection.remoteAddress;
         
         // Check for both JWT token and session cookie
@@ -309,14 +357,21 @@ app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
         // Create session in database
         await createUserSession(sessionId, user.id, req);
         
-        // Set secure cookie
-        res.cookie('__Host-sessionid', sessionId, {
+        // Set secure cookie (use different name for development vs production)
+        const cookieName = process.env.NODE_ENV === 'production' ? '__Host-sessionid' : 'sessionid';
+        const cookieOptions = {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: 'lax', // Changed from 'strict' to 'lax' for better cross-tab behavior
             maxAge: 1800000, // 30 minutes
             path: '/'
-        });
+        };
+        
+        // Only use secure and __Host- prefix in production
+        if (process.env.NODE_ENV === 'production') {
+            cookieOptions.secure = true;
+        }
+        
+        res.cookie(cookieName, sessionId, cookieOptions);
         
         await logAuthEvent('LOGIN_SUCCESS', user.id, clientIP, `User ${user.username} logged in successfully with session ${sessionId.substring(0, 8)}...`);
         
@@ -361,12 +416,18 @@ app.post('/api/auth/logout', authenticateUser, async (req, res) => {
         await invalidateSession(sessionId);
         
         // Clear the session cookie
-        res.clearCookie('__Host-sessionid', {
+        const cookieName = process.env.NODE_ENV === 'production' ? '__Host-sessionid' : 'sessionid';
+        const cookieOptions = {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: 'lax',
             path: '/'
-        });
+        };
+        
+        if (process.env.NODE_ENV === 'production') {
+            cookieOptions.secure = true;
+        }
+        
+        res.clearCookie(cookieName, cookieOptions);
         
         await logAuthEvent('LOGOUT_SUCCESS', userId, clientIP, `User ${req.user.username} logged out successfully`);
         
@@ -397,12 +458,18 @@ app.post('/api/auth/logout-all', authenticateUser, async (req, res) => {
         await invalidateAllUserSessions(userId);
         
         // Clear the current session cookie
-        res.clearCookie('__Host-sessionid', {
+        const cookieName = process.env.NODE_ENV === 'production' ? '__Host-sessionid' : 'sessionid';
+        const cookieOptions = {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'strict',
+            sameSite: 'lax',
             path: '/'
-        });
+        };
+        
+        if (process.env.NODE_ENV === 'production') {
+            cookieOptions.secure = true;
+        }
+        
+        res.clearCookie(cookieName, cookieOptions);
         
         await logAuthEvent('LOGOUT_ALL_SUCCESS', userId, clientIP, `User ${req.user.username} logged out from all sessions`);
         
@@ -832,10 +899,32 @@ app.get('*', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
+
+// Clean up expired sessions on server start
+const { cleanupExpiredSessions } = await import('./src/utils/databaseAPI.js');
+cleanupExpiredSessions().catch(err => console.log('Session cleanup on startup failed:', err));
+
+// Set up periodic session cleanup (every 15 minutes)
+setInterval(async () => {
+    try {
+        await cleanupExpiredSessions();
+        console.log('Periodic session cleanup completed');
+    } catch (error) {
+        console.error('Periodic session cleanup failed:', error);
+    }
+}, 15 * 60 * 1000); // 15 minutes
+
 app.listen(PORT, () => {
     console.log(`Express server running on http://localhost:${PORT}`);
     console.log(`React app should be running on http://localhost:5173`);
+    console.log('CORS Configuration:');
+    console.log('  - Origin: Dynamic function with allowed localhost variants');
+    console.log('  - Credentials: true');
+    console.log('  - Cookie SameSite: lax');
+    console.log(`  - Cookie Name: ${process.env.NODE_ENV === 'production' ? '__Host-sessionid' : 'sessionid'}`);
+    console.log('  - Session cleanup: Every 15 minutes');
+    
     if (!fs.existsSync(distPath)) {
-        console.log('📝 Note: Running in development mode. Build the app with "npm run build" for production.');
+        console.log(' Note: Running in development mode. Build the app with "npm run build" for production.');
     }
 });

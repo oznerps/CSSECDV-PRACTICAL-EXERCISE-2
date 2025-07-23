@@ -116,3 +116,21 @@ export async function logPermissionCheck(userId, permission, granted, context) {
     
     await writeLog(ACCESS_LOG, logEntry);
 }
+
+// User deletion logging
+export async function logUserDeletion(adminUserId, deletedUser) {
+    const logEntry = {
+        type: 'USER_DELETION',
+        adminUserId,
+        deletedUser: {
+            id: deletedUser.id,
+            username: deletedUser.username,
+            display_name: deletedUser.display_name,
+            email: deletedUser.email
+        },
+        timestamp: new Date().toISOString()
+    };
+    
+    await writeLog(SECURITY_LOG, logEntry);
+    console.log(`User Deletion: Admin ${adminUserId} deleted user ${deletedUser.username} (${deletedUser.id})`);
+}

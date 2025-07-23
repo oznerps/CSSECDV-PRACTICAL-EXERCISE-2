@@ -111,7 +111,7 @@ export const fixConnectionIssues = async () => {
 
 // Quick fix function that can be called from console
 export const quickFix = () => {
-    console.log('🚀 Running quick connection fix...');
+    console.log('Running quick connection fix...');
     
     fixConnectionIssues().then((success) => {
         if (success) {

@@ -105,7 +105,7 @@ const AdminDashboard = () => {
         
         try {
             // Here you would typically call an API to update the profile
-            // For now, we'll just update the local storage
+            // For exercise purposes, we'll just update the local storage
             const sessionData = localStorage.getItem('auth_session');
             if (sessionData) {
                 const session = JSON.parse(sessionData);
