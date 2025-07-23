@@ -1,14 +1,14 @@
 import { getAuthToken } from './SessionManager';
 
-// Store the session timeout handler function
+// Session timeout handler storage
 let sessionTimeoutHandler = null;
 
-// Register the session timeout handler from the context
+// Register session timeout handler
 export const registerSessionTimeoutHandler = (handler) => {
     sessionTimeoutHandler = handler;
 };
 
-// fetch wrapper with automatic 401 handling
+// Fetch wrapper with automatic 401 handling
 export const apiRequest = async (url, options = {}) => {
     const token = getAuthToken();
     
@@ -25,7 +25,7 @@ export const apiRequest = async (url, options = {}) => {
     
     // Enhanced options with defaults
     const enhancedOptions = {
-        credentials: 'include', // Always include cookies for session management
+        credentials: 'include', // Always include cookies
         ...options,
         headers: defaultHeaders
     };
@@ -38,12 +38,12 @@ export const apiRequest = async (url, options = {}) => {
         if (response.status === 401) {
             console.log('401 Unauthorized detected - triggering session timeout');
             
-            // Trigger session timeout if handler is registered
+            // Trigger session timeout if handler registered
             if (sessionTimeoutHandler) {
                 sessionTimeoutHandler();
             }
             
-            // Return a rejected promise to stop further processing
+            // Stop further processing
             throw new Error('Session expired');
         }
         

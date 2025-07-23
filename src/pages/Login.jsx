@@ -9,7 +9,7 @@ const Login = () => {
     const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
 
-    // Redirect authenticated users away from login page
+    // Redirect authenticated users to home
     useEffect(() => {
         if (isAuthenticated()) {
             console.log('User already authenticated, redirecting to home');
@@ -23,17 +23,16 @@ const Login = () => {
             headers: {
                 'Content-Type': 'application/json',
             },
-            credentials: 'include', // Include cookies for session management
+            credentials: 'include', // Required for session cookies
             body: JSON.stringify({ identifier, password })
         });
 
-        // If we get a CORS error or network error, try to clear any stale data and retry once
+        // Clear stale data and retry on network errors
         if (!response.ok && retryCount === 0) {
             console.log('Login request failed, clearing stale data and retrying...');
             localStorage.clear();
             sessionStorage.clear();
             
-            // Wait a moment and retry
             await new Promise(resolve => setTimeout(resolve, 1000));
             return makeLoginRequest(1);
         }
@@ -47,7 +46,7 @@ const Login = () => {
         setIsLoading(true);
 
         try {
-            // Clear any existing stale session data before login
+            // Clear stale session data
             localStorage.removeItem('auth_session');
             localStorage.removeItem('currentUser');
 
@@ -58,7 +57,7 @@ const Login = () => {
                 throw new Error(data.error || 'Login failed');
             }
 
-            // Store JWT token and user data
+            // Store session data
             setSession({
                 user: data.user,
                 token: data.token,
@@ -67,7 +66,7 @@ const Login = () => {
             
             console.log('Login successful, redirecting to home page');
             
-            // Force a page refresh to ensure all components recognize the new auth state
+            // Force page refresh for auth state update
             window.location.href = '/home';
             
         } catch (error) {

@@ -1,3 +1,4 @@
+// Database operations for user management and authentication
 import { supabase } from '../supabaseClient.js';
 import { hashPassword, verifyPassword } from './passwordUtils.js';
 import { validateUsername, validateEmail, validatePassword, sanitizeInput } from './validation.js';
@@ -6,30 +7,26 @@ export const registerUser = async (userData) => {
     try {
         const { username, displayName, email, password } = userData;
 
-        // Sanitize all inputs first
         const sanitizedUsername = sanitizeInput(username);
         const sanitizedDisplayName = sanitizeInput(displayName);
         const sanitizedEmail = sanitizeInput(email);
 
-        // Validate username
         const usernameValidation = validateUsername(sanitizedUsername);
         if (!usernameValidation.isValid) {
             throw new Error(usernameValidation.errors[0]);
         }
 
-        // Validate email
         const emailValidation = validateEmail(sanitizedEmail);
         if (!emailValidation.isValid) {
             throw new Error(emailValidation.errors[0]);
         }
 
-        // Validate password
         const passwordValidation = validatePassword(password, sanitizedUsername, sanitizedEmail);
         if (!passwordValidation.isValid) {
             throw new Error(passwordValidation.errors[0]);
         }
 
-        // Check for existing username (case-insensitive) - FIXED QUERY
+        // Check for existing username
         const { data: existingUsers } = await supabase
             .from('users')
             .select('id')
@@ -39,7 +36,7 @@ export const registerUser = async (userData) => {
             throw new Error('Username already exists');
         }
 
-        // Check for existing email (case-insensitive) - FIXED QUERY
+        // Check for existing email
         const { data: existingEmails } = await supabase
             .from('users')
             .select('id')

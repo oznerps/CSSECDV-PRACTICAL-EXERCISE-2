@@ -10,7 +10,7 @@ const ProtectedRoute = ({ children, fallbackPath = '/unauthorized' }) => {
     const [hasServerValidated, setHasServerValidated] = useState(false);
     const [isValidating, setIsValidating] = useState(false);
     
-    // Perform server validation only when route is first accessed
+    // Server validation on first route access
     useEffect(() => {
         const validateWithServer = async () => {
             if (!isAuthenticated || hasServerValidated || loading) return;
@@ -23,7 +23,7 @@ const ProtectedRoute = ({ children, fallbackPath = '/unauthorized' }) => {
                 setHasServerValidated(true);
             } catch (error) {
                 console.error('ProtectedRoute: Server validation failed:', error);
-                // The API interceptor will handle 401 errors and trigger logout
+                // API interceptor handles 401 errors
             } finally {
                 setIsValidating(false);
             }
@@ -32,12 +32,12 @@ const ProtectedRoute = ({ children, fallbackPath = '/unauthorized' }) => {
         validateWithServer();
     }, [isAuthenticated, hasServerValidated, loading]);
     
-    // Show loading while auth is loading or we're validating
+    // Show loading during validation
     if (loading || (isAuthenticated && !hasServerValidated && isValidating)) {
         return <LoadingSpinner message="Validating session..." />;
     }
     
-    // Redirect if not authenticated
+    // Redirect unauthenticated users
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;
     }
@@ -45,7 +45,6 @@ const ProtectedRoute = ({ children, fallbackPath = '/unauthorized' }) => {
     return children;
 };
 
-// PropTypes validation
 ProtectedRoute.propTypes = {
     children: PropTypes.node.isRequired,
     fallbackPath: PropTypes.string

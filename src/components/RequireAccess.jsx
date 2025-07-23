@@ -9,7 +9,7 @@ const RequireAccess = ({
     requiredPermission = null,
     requiredRoles = [],
     requiredPermissions = [],
-    requireAll = false, // true = must have ALL roles/permissions, false = must have ANY
+    requireAll = false,
     fallbackPath = '/unauthorized',
     redirectToLogin = false
 }) => {
@@ -22,17 +22,14 @@ const RequireAccess = ({
         hasAnyPermission 
     } = useAuth();
 
-    // Show loading while checking authentication
     if (loading) {
         return <LoadingSpinner message="Validating access..." />;
     }
 
-    // Redirect to login if not authenticated
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;
     }
 
-    // Build requirements arrays
     const roleRequirements = [
         ...(requiredRole ? [requiredRole] : []),
         ...requiredRoles
@@ -43,7 +40,6 @@ const RequireAccess = ({
         ...requiredPermissions
     ];
 
-    // Check role requirements
     if (roleRequirements.length > 0) {
         const hasRequiredRoles = requireAll 
             ? roleRequirements.every(role => hasRole(role))
@@ -55,7 +51,6 @@ const RequireAccess = ({
         }
     }
 
-    // Check permission requirements
     if (permissionRequirements.length > 0) {
         const hasRequiredPermissions = requireAll
             ? permissionRequirements.every(permission => hasPermission(permission))
@@ -67,7 +62,6 @@ const RequireAccess = ({
         }
     }
 
-    // All requirements met
     return children;
 };
 

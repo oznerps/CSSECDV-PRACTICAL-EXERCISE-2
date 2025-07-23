@@ -7,10 +7,10 @@ import helmet from 'helmet';
 import { body, validationResult } from 'express-validator';
 import crypto from 'crypto';
 
-// JWT utilities
+// JWT token utilities
 import { verifyToken, generateToken, refreshToken } from './src/utils/jwtUtils.js';
 
-// Database functions
+// Database helper functions
 import { 
     authenticateUser as dbAuthenticateUser,
     getUserRoles, 
@@ -26,10 +26,10 @@ import {
     invalidateAllUserSessions
 } from './src/utils/databaseAPI.js';
 
-// Supabase client
+// Supabase database client
 import { supabase } from './src/supabaseClient.js';
 
-// Audit logging
+// Security event logging
 import { 
     logSecurityEvent, 
     logAuthEvent, 
@@ -56,10 +56,10 @@ app.use(helmet({
     crossOriginEmbedderPolicy: false
 }));
 
-// Rate limiting for authentication endpoints
+// Rate limiting for auth endpoints
 const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // 5 attempts per window
+    windowMs: 15 * 60 * 1000, // 15 minute window
+    max: 5, // 5 attempts max
     message: {
         error: 'Too many authentication attempts, please try again later',
         code: 'RATE_LIMIT_EXCEEDED'
@@ -70,14 +70,14 @@ const authLimiter = rateLimit({
 
 // General API rate limiting
 const apiLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
+    windowMs: 15 * 60 * 1000, // 15 minute window
     max: 100, // 100 requests per window
     message: {
         error: 'Too many requests, please try again later'
     }
 });
 
-// Cookie parser middleware (must be before CORS)
+// Cookie parser (required before CORS)
 import cookieParser from 'cookie-parser';
 app.use(cookieParser());
 
@@ -85,19 +85,19 @@ app.use(cookieParser());
 app.use('/api/auth', authLimiter);
 app.use('/api', apiLimiter);
 
-// Middleware configuration
+// Basic middleware setup
 app.use(express.json());
 
-// Enhanced CORS configuration for hybrid authentication
+// CORS configuration for hybrid auth
 app.use(cors({
     origin: function (origin, callback) {
-        // Allow requests with no origin (mobile apps, curl requests, etc.)
+        // Allow no-origin requests
         if (!origin) return callback(null, true);
         
         const allowedOrigins = [
             'http://localhost:5173',
             'http://127.0.0.1:5173',
-            'http://localhost:3000', // In case frontend runs on 3000
+            'http://localhost:3000',
             'http://127.0.0.1:3000'
         ];
         
@@ -108,7 +108,7 @@ app.use(cors({
             callback(new Error('Not allowed by CORS'));
         }
     },
-    credentials: true, // Essential for cookies
+    credentials: true, // Required for cookies
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
     allowedHeaders: [
         'Content-Type', 
@@ -123,11 +123,11 @@ app.use(cors({
     ],
     exposedHeaders: ['Set-Cookie'],
     preflightContinue: false,
-    optionsSuccessStatus: 200, // For legacy browser support
-    maxAge: 86400 // 24 hours preflight cache
+    optionsSuccessStatus: 200, // Legacy browser support
+    maxAge: 86400 // 24 hour preflight cache
 }));
 
-// Debug middleware to log request details (only in development)
+// Development request logging
 if (process.env.NODE_ENV !== 'production') {
     app.use((req, res, next) => {
         console.log(`${req.method} ${req.path}`, {
@@ -140,7 +140,7 @@ if (process.env.NODE_ENV !== 'production') {
     });
 }
 
-// ONLY serve static files if dist directory exists (for production)
+// Production static file serving
 import fs from 'fs';
 const distPath = path.join(__dirname, 'dist');
 if (fs.existsSync(distPath)) {
@@ -150,16 +150,16 @@ if (fs.existsSync(distPath)) {
     console.log('Running in development mode - dist directory not found');
 }
 
-// Hybrid authentication middleware (JWT + Session)
+// Hybrid authentication middleware
 const authenticateUser = async (req, res, next) => {
     try {
         const authHeader = req.headers.authorization;
-        // Use appropriate cookie name based on environment
+        // Environment-specific cookie names
         const cookieName = process.env.NODE_ENV === 'production' ? '__Host-sessionid' : 'sessionid';
         const sessionId = req.cookies[cookieName];
         const clientIP = req.ip || req.connection.remoteAddress;
         
-        // Check for both JWT token and session cookie
+        // Require both JWT and session cookie
         if (!authHeader || !authHeader.startsWith('Bearer ') || !sessionId) {
             await logAuthEvent('AUTH_FAILED', null, clientIP, 'Missing JWT token or session cookie');
             return res.status(401).json({ 
@@ -192,7 +192,7 @@ const authenticateUser = async (req, res, next) => {
             });
         }
         
-        // Verify that session belongs to the same user as the JWT
+        // Verify session matches JWT user
         if (session.user_id !== decoded.userId) {
             await logAuthEvent('AUTH_FAILED', decoded.userId, clientIP, 'Session user mismatch');
             return res.status(401).json({ 
@@ -201,7 +201,7 @@ const authenticateUser = async (req, res, next) => {
             });
         }
         
-        // Attach user info from token and session
+        // Attach user info to request
         req.user = {
             id: decoded.userId,
             username: decoded.username,
@@ -226,7 +226,7 @@ const authenticateUser = async (req, res, next) => {
     }
 };
 
-// Role-based authorization middleware
+// Role-based authorization
 function requireRole(allowedRoles) {
     return async (req, res, next) => {
         try {
@@ -253,7 +253,7 @@ function requireRole(allowedRoles) {
     };
 }
 
-// Permission-based authorization middleware
+// Permission-based authorization
 function requirePermission(requiredPermission) {
     return async (req, res, next) => {
         try {
@@ -277,7 +277,7 @@ function requirePermission(requiredPermission) {
     };
 }
 
-// Request validation middleware
+// Login request validation
 const validateLoginRequest = [
     body('identifier')
         .trim()
@@ -298,7 +298,7 @@ const validateLoginRequest = [
     }
 ];
 
-// User update validation middleware
+// User update validation
 const validateUserUpdateRequest = [
     body('display_name')
         .optional()
@@ -322,23 +322,21 @@ const validateUserUpdateRequest = [
     }
 ];
 
-// Add error handling
+// Error handling
 process.on('unhandledRejection', (reason, promise) => {
     console.log('Unhandled Rejection at:', promise, 'reason:', reason);
-    // Keep server running instead of crashing
+    // Keep server running
 });
 
 process.on('uncaughtException', (error) => {
     console.log('Uncaught Exception:', error);
-    // Log but don't exit immediately
+    // Log error, don't exit
 });
 
-// ================================
-// Authentication Endpoints
-// ================================
+// Authentication endpoints
 
 
-// Login endpoint with validation, JWT, and session management
+// Login endpoint
 app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
     try {
         const { identifier, password } = req.body;
@@ -354,20 +352,20 @@ app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
         // Generate session ID
         const sessionId = crypto.randomBytes(32).toString('hex');
         
-        // Create session in database
+        // Create database session
         await createUserSession(sessionId, user.id, req);
         
-        // Set secure cookie (use different name for development vs production)
+        // Set session cookie
         const cookieName = process.env.NODE_ENV === 'production' ? '__Host-sessionid' : 'sessionid';
         const cookieOptions = {
             httpOnly: true,
-            sameSite: 'strict', // CSSECDV requirement: Must use 'strict' for session cookies
-            maxAge: 1800000, // 30 minutes
-            //maxAge: 60000,    // 1 minute (timeout testing purposes)
+            sameSite: 'strict', // Required for security
+            maxAge: 1800000, // 30 minute sessions
+            //maxAge: 60000,    // Testing timeout
             path: '/'
         };
         
-        // Only use secure and __Host- prefix in production
+        // Secure cookies in production only
         if (process.env.NODE_ENV === 'production') {
             cookieOptions.secure = true;
         }
@@ -376,7 +374,7 @@ app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
         
         await logAuthEvent('LOGIN_SUCCESS', user.id, clientIP, `User ${user.username} logged in successfully with session ${sessionId.substring(0, 8)}...`);
         
-        // Return user data and token - FIXED: Include all user fields
+        // Return user data and token
         res.json({
             success: true,
             user: {
@@ -406,17 +404,17 @@ app.post('/api/auth/login', validateLoginRequest, async (req, res) => {
     }
 });
 
-// Logout endpoint with session invalidation
+// Logout endpoint
 app.post('/api/auth/logout', authenticateUser, async (req, res) => {
     try {
         const sessionId = req.sessionId;
         const userId = req.user.id;
         const clientIP = req.ip || req.connection.remoteAddress;
         
-        // Invalidate the current session
+        // Invalidate session
         await invalidateSession(sessionId);
         
-        // Clear the session cookie
+        // Clear session cookie
         const cookieName = process.env.NODE_ENV === 'production' ? '__Host-sessionid' : 'sessionid';
         const cookieOptions = {
             httpOnly: true,
@@ -458,7 +456,7 @@ app.post('/api/auth/logout-all', authenticateUser, async (req, res) => {
         // Invalidate all user sessions
         await invalidateAllUserSessions(userId);
         
-        // Clear the current session cookie
+        // Clear current session cookie
         const cookieName = process.env.NODE_ENV === 'production' ? '__Host-sessionid' : 'sessionid';
         const cookieOptions = {
             httpOnly: true,
@@ -491,7 +489,7 @@ app.post('/api/auth/logout-all', authenticateUser, async (req, res) => {
     }
 });
 
-// Registration endpoint with validation and RBAC integration
+// Registration endpoint
 app.post('/api/auth/register', [
     body('username')
         .trim()
@@ -525,7 +523,6 @@ app.post('/api/auth/register', [
         const { username, displayName, email, password } = req.body;
         const clientIP = req.ip || req.connection.remoteAddress;
         
-        // Import the registerUser function
         const { registerUser } = await import('./src/utils/databaseAPI.js');
         
         await logSecurityEvent('REGISTRATION_ATTEMPT', null, `Registration attempt for username: ${username}, email: ${email}, IP: ${clientIP}`);
@@ -586,7 +583,7 @@ app.post('/api/auth/refresh', async (req, res) => {
     }
 });
 
-// API endpoint for frontend route verification
+// Route verification endpoint
 app.get('/api/auth/verify-permission/:permission', 
     authenticateUser,
     async (req, res) => {
@@ -607,7 +604,7 @@ app.get('/api/auth/verify-permission/:permission',
     }
 );
 
-// Test endpoint to verify authorization
+// Auth test endpoint
 app.get('/api/auth/test',
     authenticateUser,
     async (req, res) => {
@@ -628,11 +625,9 @@ app.get('/api/auth/test',
     }
 );
 
-// ================================
-// User Management API Endpoints
-// ================================
+// User management endpoints
 
-// GET /api/users - List all users (admin and manager only)
+// Get all users endpoint
 app.get('/api/users', 
     authenticateUser,
     requireRole(['admin', 'manager']),
@@ -640,10 +635,10 @@ app.get('/api/users',
         try {
             const users = await getAllUsersWithRoles();
             
-            // Log access to user list
+            // Log user list access
             await logSecurityEvent('USER_LIST_ACCESS', req.user.id, `User ${req.user.username} accessed user list`);
             
-            // Return user list without sensitive information
+            // Return users without sensitive data
             const sanitizedUsers = users.map(user => ({
                 id: user.id,
                 username: user.username,
@@ -670,7 +665,7 @@ app.get('/api/users',
     }
 );
 
-// PUT /api/users/:id - Update user information
+// Update user endpoint
 app.put('/api/users/:id',
     authenticateUser,
     validateUserUpdateRequest,
@@ -680,7 +675,7 @@ app.put('/api/users/:id',
             const currentUserId = req.user.id;
             const { display_name, email } = req.body;
             
-            // Check if user is updating their own profile or if they have admin permissions
+            // Check update permissions
             const isOwnProfile = targetUserId === currentUserId;
             const hasAdminPermission = await userHasPermission(currentUserId, 'manage_users');
             
@@ -708,7 +703,7 @@ app.put('/api/users/:id',
                 updateData.email = email;
             }
             
-            // Only proceed if there's something to update
+            // Only update if changes exist
             if (Object.keys(updateData).length === 0) {
                 return res.status(400).json({
                     error: 'No valid fields to update'
@@ -761,7 +756,7 @@ app.put('/api/users/:id',
     }
 );
 
-// PUT /api/users/:userId/roles - Update user roles
+// Update user roles endpoint
 app.put('/api/users/:userId/roles',
     authenticateUser,
     requirePermission('manage_users'),
@@ -771,7 +766,7 @@ app.put('/api/users/:userId/roles',
             const { roleIds } = req.body;
             const currentUserId = req.user.id;
 
-            // Validate that user can assign these roles
+            // Check role assignment permissions
             for (const roleId of roleIds) {
                 const canAssign = await canUserAssignRole(currentUserId, roleId);
                 if (!canAssign) {
@@ -797,7 +792,7 @@ app.put('/api/users/:userId/roles',
     }
 );
 
-// DELETE /api/users/:id - Delete user (admin only with layered security)
+// Delete user endpoint
 app.delete('/api/users/:id',
     authenticateUser,
     requireRole(['admin']),
@@ -830,11 +825,8 @@ app.delete('/api/users/:id',
     }
 );
 
-// ================================
-// Protected Routes (Frontend Routes)
-// ================================
+// Protected frontend routes
 
-// Admin Dashboard
 app.get('/admin',
     authenticateUser,
     requirePermission('admin_access'),
@@ -847,7 +839,6 @@ app.get('/admin',
     }
 );
 
-// User Management Interface
 app.get('/users',
     authenticateUser,
     requireRole(['admin', 'manager']),
@@ -860,7 +851,6 @@ app.get('/users',
     }
 );
 
-// Profile Management
 app.get('/profile',
     authenticateUser,
     requirePermission('edit_profile'),
@@ -873,11 +863,8 @@ app.get('/profile',
     }
 );
 
-// ================================
-// Utility Endpoints
-// ================================
+// Utility endpoints
 
-// Health check
 app.get('/health', (req, res) => {
     res.json({
         status: 'healthy',
@@ -885,13 +872,13 @@ app.get('/health', (req, res) => {
     });
 });
 
-// Catch-all for React Router - ONLY if dist directory exists
+// React Router catch-all
 app.get('*', (req, res) => {
     const distIndexPath = path.join(__dirname, 'dist', 'index.html');
     if (fs.existsSync(distIndexPath)) {
         res.sendFile(distIndexPath);
     } else {
-        // In development mode, redirect API calls that don't exist
+        // Redirect unknown API calls in dev
         res.status(404).json({ 
             error: 'API endpoint not found',
             message: 'Running in development mode. Frontend should be on port 5173'
@@ -901,11 +888,11 @@ app.get('*', (req, res) => {
 
 const PORT = process.env.PORT || 3001;
 
-// Clean up expired sessions on server start
+// Clean up expired sessions on startup
 const { cleanupExpiredSessions } = await import('./src/utils/databaseAPI.js');
 cleanupExpiredSessions().catch(err => console.log('Session cleanup on startup failed:', err));
 
-// Set up periodic session cleanup (every 15 minutes)
+// Periodic session cleanup
 setInterval(async () => {
     try {
         await cleanupExpiredSessions();
@@ -913,7 +900,7 @@ setInterval(async () => {
     } catch (error) {
         console.error('Periodic session cleanup failed:', error);
     }
-}, 15 * 60 * 1000); // 15 minutes
+}, 15 * 60 * 1000); // 15 minute interval
 
 app.listen(PORT, () => {
     console.log(`Express server running on http://localhost:${PORT}`);

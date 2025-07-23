@@ -18,12 +18,11 @@ import SessionWarningToast from './components/SessionWarningToast';
 import SessionExpiredModal from './components/SessionExpiredModal';
 import { registerSessionTimeoutHandler } from './utils/apiInterceptor';
 
-// Inner App component that uses the session timeout context
 function AppContent() {
     const { handleForceLogout } = useSessionTimeout();
 
     useEffect(() => {
-        // Register the session timeout handler with the API interceptor
+        // Register session timeout handler with API interceptor
         registerSessionTimeoutHandler(handleForceLogout);
     }, [handleForceLogout]);
 
@@ -36,7 +35,6 @@ function AppContent() {
                 <Route path="/register" element={<Register />} />
                 <Route path="/forgot-password" element={<ForgotPassword />} />
                 
-                {/* Home page - first page after successful login */}
                 <Route
                     path="/home"
                     element={
@@ -46,7 +44,6 @@ function AppContent() {
                     }
                 />
 
-                {/* Dashboard - main application hub */}
                 <Route
                     path="/dashboard"
                     element={
@@ -56,7 +53,6 @@ function AppContent() {
                     }
                 />
 
-                {/* Role-based protection - admin role only */}
                 <Route
                     path="/admin"
                     element={
@@ -66,7 +62,6 @@ function AppContent() {
                     }
                 />
 
-                {/* Permission-based protection - user management */}
                 <Route
                     path="/users"
                     element={
@@ -76,7 +71,6 @@ function AppContent() {
                     }
                 />
 
-                {/* All authenticated users (as per PDF specification) */}
                 <Route
                     path="/profile"
                     element={
@@ -89,14 +83,12 @@ function AppContent() {
                 <Route path="/unauthorized" element={<Unauthorized />} />   
             </Routes>
             
-            {/* Session timeout notifications */}
             <SessionWarningToast />
             <SessionExpiredModal />
         </>
     );
 }
 
-// Main App component with SessionTimeoutProvider wrapper
 export default function App() {
     return (
         <SessionTimeoutProvider>

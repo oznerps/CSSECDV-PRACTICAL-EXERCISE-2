@@ -15,7 +15,7 @@ export const useAuth = () => {
 
     const checkSession = useCallback(async (skipServerValidation = false) => {
         try {
-            // Always start by checking client-side session data
+            // Check client-side session data
             const sessionUser = getSession();
             const hasClientSession = contextAuth && isAuthenticated() && sessionUser;
             
@@ -24,7 +24,7 @@ export const useAuth = () => {
                 return;
             }
 
-            // For initial load or when explicitly requested, skip server validation
+            // Skip server validation when requested
             if (skipServerValidation) {
                 setAuthState({
                     user: sessionUser,
@@ -36,7 +36,7 @@ export const useAuth = () => {
                 return;
             }
 
-            // Server validation - CRITICAL for session tampering detection
+            // Server validation for session tampering detection
             try {
                 console.log('Validating session with server...');
                 const response = await authAPI.test();
@@ -51,7 +51,7 @@ export const useAuth = () => {
             } catch (apiError) {
                 console.error('Server session validation failed:', apiError);
                 
-                // If it's a 429 error, don't trigger logout - use cached data
+                // Use cached data if rate limited
                 if (apiError.message.includes('429') || apiError.message.includes('Too Many Requests')) {
                     console.warn('Rate limited, using cached session data');
                     setAuthState({
@@ -64,7 +64,7 @@ export const useAuth = () => {
                     return;
                 }
 
-                // Any other error (including 401) means session is invalid
+                // Logout on session validation failure
                 console.log('Session validation failed, triggering logout');
                 handleForceLogout();
                 setAuthState({
@@ -87,7 +87,7 @@ export const useAuth = () => {
         }
     }, [contextAuth, handleForceLogout]);
 
-    // Role checking functions
+    // Role checking utilities
     const hasRole = useCallback((roleName) => {
         if (!authState.user || !authState.user.roles) return false;
         return authState.user.roles.some(role => 
@@ -120,12 +120,12 @@ export const useAuth = () => {
         return 'user';
     }, [hasRole]);
 
-    // Initialize on mount - use balanced validation approach
+    // Initialize with balanced validation approach
     useEffect(() => {
-        checkSession(true); // Skip server validation on initial load to prevent timeouts
+        checkSession(true); // Skip server validation to prevent timeouts
     }, [checkSession]);
 
-    // React to context auth changes
+    // React to authentication context changes
     useEffect(() => {
         if (!contextAuth) {
             setAuthState({

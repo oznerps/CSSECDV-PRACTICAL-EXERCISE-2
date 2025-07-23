@@ -22,14 +22,14 @@ export const SessionTimeoutProvider = ({ children }) => {
         warningCount: 0
     });
 
-    // Session timeout configuration (adjusts based on server timeout setting)
-    const SESSION_TIMEOUT = 60000; // 1 minute (matches server.js line 366)
-    const WARNING_TIME = 50000; // 50 seconds (10 seconds before timeout)
+    // Session timeout configuration
+    const SESSION_TIMEOUT = 60000; // 1 minute timeout
+    const WARNING_TIME = 50000; // 10 seconds before timeout
 
     const handleSessionExpired = useCallback(() => {
         console.log('Session has expired');
         
-        // Clear local session data and cookies
+        // Clear session data and cookies
         clearSession();
         clearSessionCookie();
         
@@ -41,11 +41,11 @@ export const SessionTimeoutProvider = ({ children }) => {
             isTimeoutModalVisible: true
         }));
         
-        // Clear any existing timers
+        // Clear existing timers
         clearTimeout(warningTimerRef.current);
         clearTimeout(timeoutTimerRef.current);
         
-        // Redirect after showing modal briefly
+        // Redirect after modal display
         setTimeout(() => {
             setSessionState(prev => ({ ...prev, isTimeoutModalVisible: false }));
             navigate('/login', { replace: true });
@@ -86,7 +86,7 @@ export const SessionTimeoutProvider = ({ children }) => {
             console.log('Server logout failed, proceeding with client cleanup');
         }
         
-        // Always clear cookies and session data
+        // Always clear session data
         clearSession();
         clearSessionCookie();
         
@@ -100,7 +100,7 @@ export const SessionTimeoutProvider = ({ children }) => {
     const sessionCheckIntervalRef = React.useRef(null);
 
     const startSessionTimers = useCallback(() => {
-        // Clear any existing timers
+        // Clear existing timers
         clearTimeout(warningTimerRef.current);
         clearTimeout(timeoutTimerRef.current);
         
@@ -147,17 +147,17 @@ export const SessionTimeoutProvider = ({ children }) => {
             }
         };
 
-        // Initial check
+        // Initial authentication check
         checkAuthState();
 
-        // Monitor localStorage changes (for cross-tab synchronization)
+        // Cross-tab synchronization
         const handleStorageChange = (e) => {
             if (e.key === 'auth_session') {
                 checkAuthState();
             }
         };
 
-        // Periodic session validation (every 30 seconds, less aggressive)
+        // Periodic session validation
         sessionCheckIntervalRef.current = setInterval(() => {
             if (!isAuthenticated() && sessionState.isAuthenticated) {
                 handleSessionExpired();

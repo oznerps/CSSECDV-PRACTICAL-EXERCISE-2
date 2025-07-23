@@ -1,4 +1,4 @@
-//  session management with JWT token handling
+// Session management with JWT token handling
 
 const SESSION_KEY = 'auth_session';
 

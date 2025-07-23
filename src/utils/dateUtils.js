@@ -1,4 +1,4 @@
-// Centralized date/time formatting utilities with proper timezone handling
+// Date and time formatting utilities
 
 export const formatDate = (dateString, options = {}) => {
     if (!dateString) return 'Not available';
@@ -41,7 +41,7 @@ export const formatDateTime = (dateString, options = {}) => {
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
-            hour12: false, // Use 24-hour format
+            hour12: false,
             ...options
         };
         
@@ -77,7 +77,7 @@ export const formatRelativeTime = (dateString) => {
         } else if (diffDays < 7) {
             return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
         } else {
-            // For older dates, show the actual date
+            // Show actual date for older entries
             return formatDateTime(dateString, { 
                 year: 'numeric', 
                 month: 'short', 
@@ -106,7 +106,7 @@ export const formatTimeOnly = (dateString, options = {}) => {
             hour: '2-digit',
             minute: '2-digit',
             second: '2-digit',
-            hour12: false, // Use 24-hour format
+            hour12: false,
             ...options
         };
         
@@ -144,7 +144,7 @@ export const formatUserFriendlyDateTime = (dateString) => {
             return 'Never';
         }
         
-        // Get user's timezone for more accurate display
+        // Get user's timezone
         const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
         
         if (isToday(dateString)) {
