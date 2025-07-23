@@ -414,9 +414,6 @@ const response = await fetch('/api/users', {
    - Verify RBAC tables are properly populated
    - Check server logs for detailed errors
 
-3. **CORS Related Login Issues**:
-   - Have not found a fix to this so just restart the server
-
 ### Development Tips
 
 1. **Enable debug logging**: Check browser console and server logs
